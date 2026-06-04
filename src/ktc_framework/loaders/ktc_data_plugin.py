@@ -236,7 +236,7 @@ class KTCDataPlugin:
                 f"  level={level}, sample='{sample}' → num='{num}'"
             )
 
-        voltages, injection, mpat = self._load_data(data_path)
+        voltages, injection, mpat, ref_voltages = self._load_data(data_path)
         ground_truth        = self._load_gt(gt_path)
 
         return DataBatch(
@@ -246,7 +246,7 @@ class KTCDataPlugin:
             level              = level,
             sample_id          = f"level{level}_{sample}",
             mesh               = None,   # filled by BatchRunner._run_one
-            reference_voltages = None,   # filled by BatchRunner._run_one
+            reference_voltages = ref_voltages,
             measurement_patterns=mpat,
         )
 
@@ -254,11 +254,13 @@ class KTCDataPlugin:
 
     def _load_data(
         self, path: str
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Extract Uel, Inj, and Mpat from KTC data file.
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
+        """Extract Uel, Inj, Mpat, and Uelref from KTC data file.
 
-        Evaluation data files usually contain Uel only.
-        If Inj or Mpat are missing, they are loaded from ref.mat.
+        Evaluation data files usually contain Uel only.  If Inj, Mpat, or
+        Uelref are missing they are loaded from ref.mat -- ref.mat is
+        always required for the empty-tank reference voltages used by
+        difference imaging.
         """
         mat = _load_mat(path)
 
@@ -307,7 +309,16 @@ class KTCDataPlugin:
                 f"Expected (32, 31)."
             )
 
-        return voltages, injection, mpat
+        # Uelref: empty-tank reference voltages, used by linear difference
+        # imaging.  Always fetched from ref.mat (data files don't carry it).
+        if protocol is None:
+            try:
+                protocol = self._load_protocol_from_ref(path)
+            except FileNotFoundError:
+                protocol = {}
+        ref_voltages = protocol.get("Uelref") if isinstance(protocol, dict) else None
+
+        return voltages, injection, mpat, ref_voltages
 
     def _load_gt(self, path: str) -> np.ndarray:
         """Load the ground-truth segmentation mask.
@@ -387,7 +398,12 @@ class KTCDataPlugin:
         return mpat
     
     def _load_protocol_from_ref(self, data_path: str) -> dict[str, np.ndarray]:
-        """Load Inj/Injref and Mpat from ref.mat."""
+        """Load Inj/Injref, Mpat, and Uelref from ref.mat.
+
+        Uelref is the empty-tank measurement vector that linear difference
+        EIT subtracts from each measurement.  It is always returned when
+        present in ref.mat; callers may ignore it if not needed.
+        """
 
         from pathlib import Path
 
@@ -426,15 +442,22 @@ class KTCDataPlugin:
                 mpat = mpat.T
 
             if injection.shape == (32, 76) and mpat.shape == (32, 31):
-                return {
+                result: dict[str, np.ndarray] = {
                     "Inj": injection,
                     "Mpat": mpat,
                 }
+                for key in ("Uelref", "Uel", "Uref"):
+                    if key in ref_mat:
+                        result["Uelref"] = np.asarray(
+                            ref_mat[key], dtype=np.float32
+                        ).ravel()
+                        break
+                return result
 
         raise FileNotFoundError(
             "Could not load Inj/Injref and Mpat from ref.mat. Tried: "
             + ", ".join(str(p) for p in candidates)
-        )   
+        )
 
     def _load_protocol_from_ref(self, data_path: str) -> dict[str, np.ndarray]:
         """Load Inj/Injref and Mpat from ref.mat."""

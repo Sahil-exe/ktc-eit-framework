@@ -71,11 +71,11 @@ class EITFEM:
         M = sp.sparse.csr_matrix((gN, self.Nel))
         K = sp.sparse.csr_matrix((gN, gN))
         s = np.zeros((self.Nel, 1))
-        g = self.Mesh2.g  # Nodes
+        g = np.array([node.Coordinate for node in self.Mesh2.Node])  # Nodes
         for ii in range(HN):
             # Go through all triangles
             ind = self.Mesh2.Element[ii].Topology  # The indices to g of the ii'th triangle.
-            if self.Mesh2.Element[ii].Electrode:  # Checks if the triangle ii is under an electrode
+            if len(self.Mesh2.Element[ii].Electrode) > 0:  # Checks if the triangle ii is under an electrode
                 Ind = self.Mesh2.Element[ii].Electrode[1]
                 a = g[Ind[0], :]
                 b = g[Ind[1], :]  # the 2nd order node
