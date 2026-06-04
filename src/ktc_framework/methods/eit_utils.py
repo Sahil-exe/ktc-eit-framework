@@ -399,7 +399,14 @@ def rasterize(
     x_min, x_max = g[:, 0].min(), g[:, 0].max()
     y_min, y_max = g[:, 1].min(), g[:, 1].max()
     xi = np.linspace(x_min, x_max, grid_size)
-    yi = np.linspace(y_min, y_max, grid_size)
+    # Reverse y so row 0 (top of image when displayed with imshow) maps to
+    # y_max (mathematical "up").  Without this, mesh +y lands at the bottom
+    # of the output and reconstructions are vertically flipped relative to
+    # the ground-truth label arrays and MATLAB's reference output.  The
+    # symptom is "mixed-inclusion samples look like one centred blob" --
+    # actually the two inclusions are present but in vertically-swapped
+    # locations, so the eye reads them as overlapping in the middle.
+    yi = np.linspace(y_max, y_min, grid_size)
     gx, gy = np.meshgrid(xi, yi)
 
     grid = griddata(g, vals, (gx, gy), method="linear", fill_value=0.0)
