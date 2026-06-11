@@ -66,6 +66,7 @@ class BatchRunner:
         # Load shared resources once — passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
         self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
+        self.data_plugin = self._load_data_plugin()
 
     # ------------------------------------------------------------------
     # Resource loaders
@@ -136,6 +137,27 @@ class BatchRunner:
         except Exception as exc:
             console.print(f"[yellow]pyEIT mesh generation failed ({exc}) — returning None.[/yellow]")
             return None
+
+    def _load_data_plugin(self):
+        """Resolve and instantiate the configured data plugin once.
+
+        Falls back to MockDataPlugin if the configured name is not registered,
+        matching the previous per-run behaviour.
+        """
+        plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
+        dataset_root = self.config.get("dataset_root", "")
+
+        try:
+            data_plugin_cls = PluginRegistry.get(plugin_name)
+        except KeyError:
+            console.print(
+                f"[yellow]data_plugin '{plugin_name}' not registered — "
+                f"falling back to MockDataPlugin.[/yellow]"
+            )
+            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
+            data_plugin_cls = MockDataPlugin
+
+        return data_plugin_cls(dataset_root)
 
     def _load_reference(self, dataset_root: str) -> np.ndarray | None:
         """Load the empty-tank reference voltages from ``ref.mat``.
@@ -231,6 +253,14 @@ class BatchRunner:
                             results.append(result)
                         progress.advance(task)
 
+        n_gt_missing = sum(1 for r in results if r.get("gt_missing"))
+        if n_gt_missing:
+            console.print(
+                f"\n[bold red]{n_gt_missing} of {len(results)} runs were scored "
+                f"against an all-zero ground truth — their scores are "
+                f"meaningless. Check the dataset layout / GT folder.[/bold red]"
+            )
+
         self._save(results)
         self._print_summary(results)
         self._print_degradation(results)
@@ -241,25 +271,11 @@ class BatchRunner:
         self, method: str, level: int, sample: str
     ) -> dict[str, Any] | None:
         """Load one sample, run one reconstruction method, return scored result."""
-        plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
         dataset_root = self.config.get("dataset_root", "")
 
-        # ── load data plugin ──────────────────────────────────────────────
+        # ── load sample (plugin is constructed once in __init__) ──────────
         try:
-            data_plugin_cls = PluginRegistry.get(plugin_name)
-        except KeyError:
-            console.print(
-                f"[yellow]data_plugin '{plugin_name}' not registered — "
-                f"falling back to MockDataPlugin.[/yellow]"
-            )
-            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
-            data_plugin_cls = MockDataPlugin
-
-        data_plugin = data_plugin_cls(dataset_root)
-
-        # ── load sample ───────────────────────────────────────────────────
-        try:
-            raw_batch = data_plugin.load_sample(level=level, sample=sample)
+            raw_batch = self.data_plugin.load_sample(level=level, sample=sample)
         except FileNotFoundError:
             console.print(
                 f"[yellow]Skipping level={level} sample={sample} — "
@@ -311,7 +327,16 @@ class BatchRunner:
         runtime_ms = (time.perf_counter() - start) * 1000
 
         # ── score ─────────────────────────────────────────────────────────
-        gt      = batch.ground_truth
+        gt = batch.ground_truth
+        # An all-zero GT almost always means the file was missing/unreadable
+        # and the loader fell back to zeros — every score against it is 0.0.
+        gt_missing = not np.any(gt)
+        if gt_missing:
+            console.print(
+                f"[red]Ground truth for level={level} sample={sample} is all "
+                f"zeros (missing or unreadable GT file?) — KTC score for this "
+                f"run is meaningless.[/red]"
+            )
         metrics = run_all_metrics(reconstruction, gt)
         comp    = composite_score(metrics)
         grade   = letter_grade(comp)
@@ -348,6 +373,7 @@ class BatchRunner:
             "method":          method,
             "level":           level,
             "sample":          sample,
+            "gt_missing":      gt_missing,
             "output_shape":    list(reconstruction.shape),
             "metrics":         metrics,
             "composite_score": comp,

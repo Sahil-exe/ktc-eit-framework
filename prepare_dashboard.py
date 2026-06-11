@@ -61,21 +61,30 @@ def main() -> None:
     run_dir = Path("outputs") / f"run_{run_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Build averaged scores per method (for leaderboard & radar) ────
-    method_buckets: dict[str, list] = defaultdict(list)
-    for run in runs:
-        method_buckets[run["method"]].append(run["metrics"])
+    # ── Averaged scores per method (for leaderboard & radar) ──────────
+    # BatchRunner._save already writes dashboard_scores.json next to
+    # scores.json — reuse it so there is a single source of truth.
+    # Rebuild from the flat list only for old outputs that lack it.
+    runner_scores_path = args.input.parent / "dashboard_scores.json"
+    if runner_scores_path.exists():
+        with open(runner_scores_path, encoding="utf-8") as f:
+            scores: dict[str, dict] = json.load(f)
+        print(f"[OK] Reusing runner output: {runner_scores_path}")
+    else:
+        method_buckets: dict[str, list] = defaultdict(list)
+        for run in runs:
+            method_buckets[run["method"]].append(run["metrics"])
 
-    scores: dict[str, dict] = {}
-    for method, metric_list in method_buckets.items():
-        n = len(metric_list)
-        averaged: dict[str, float] = {}
-        for key in metric_list[0].keys():
-            try:
-                averaged[key] = round(sum(m[key] for m in metric_list) / n, 6)
-            except (TypeError, KeyError):
-                pass
-        scores[method] = averaged
+        scores = {}
+        for method, metric_list in method_buckets.items():
+            n = len(metric_list)
+            averaged: dict[str, float] = {}
+            for key in metric_list[0].keys():
+                try:
+                    averaged[key] = round(sum(m[key] for m in metric_list) / n, 6)
+                except (TypeError, KeyError):
+                    pass
+            scores[method] = averaged
 
     # Write scores.json into run folder
     scores_out = run_dir / "scores.json"
@@ -85,18 +94,26 @@ def main() -> None:
     for method, m in scores.items():
         print(f"     {method}: KTC={m.get('ktc_score', 0):.4f}")
 
-    # ── Build per-run metrics (for degradation curve & comparison) ────
-    per_run: dict[str, dict] = defaultdict(dict)
-    for run in runs:
-        key = f"L{run['level']}_{run['sample']}"
-        per_run[run["method"]][key] = {
-            **run["metrics"],
-            "composite_score": run.get("composite_score", 0.0),
-            "grade":           run.get("grade", "D"),
-            "runtime_ms":      run.get("runtime_ms", 0.0),
-            "level":           run["level"],
-            "sample":          run["sample"],
-        }
+    # ── Per-run metrics (for degradation curve & comparison) ──────────
+    # Same single-source rule: prefer the runner's per_run_metrics.json
+    # (it also carries png/mat/overlay paths the rebuild would lose).
+    runner_per_run_path = args.input.parent / "per_run_metrics.json"
+    if runner_per_run_path.exists():
+        with open(runner_per_run_path, encoding="utf-8") as f:
+            per_run: dict[str, dict] = json.load(f)
+        print(f"[OK] Reusing runner output: {runner_per_run_path}")
+    else:
+        per_run = defaultdict(dict)
+        for run in runs:
+            key = f"L{run['level']}_{run['sample']}"
+            per_run[run["method"]][key] = {
+                **run["metrics"],
+                "composite_score": run.get("composite_score", 0.0),
+                "grade":           run.get("grade", "D"),
+                "runtime_ms":      run.get("runtime_ms", 0.0),
+                "level":           run["level"],
+                "sample":          run["sample"],
+            }
 
     per_run_out = run_dir / "per_run_metrics.json"
     with open(per_run_out, "w", encoding="utf-8") as f:
