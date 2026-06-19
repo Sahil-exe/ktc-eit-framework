@@ -107,6 +107,15 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
 
     print(f"      {copied} images arranged for the dashboard")
 
+    # -- report figures: keep the already-rendered PNGs exactly as produced
+    # by the backend, so HTML export embeds the same visuals instead of
+    # regenerating charts with a different layout.
+    src_figures = output_dir / "figures"
+    if src_figures.exists():
+        dst_figures = run_dir / "figures"
+        shutil.copytree(src_figures, dst_figures, dirs_exist_ok=True)
+        print(f"      figures copied for reports: {len(list(dst_figures.glob('*.png')))} PNGs")
+
     # -- pointer LAST: only a fully prepared run becomes "latest"
     (runs_root / "latest.txt").write_text(str(run_dir.resolve()))
     print(f"      {runs_root / 'latest.txt'} -> {run_dir}")
