@@ -618,23 +618,27 @@ def generate_html_report(scores_json_path, figures_dir, output_path=None) -> str
 <title>EIT Dashboard Report</title>
 <style>
 * {{ box-sizing: border-box; }}
+html,body {{ width:100%; max-width:100%; overflow-x:hidden; }}
 body {{ margin:0; padding:20px; background:#eef2f7; color:#1f2328; font-family:Inter, Segoe UI, Arial, sans-serif; }}
-main {{ max-width:1120px; margin:0 auto; }}
-.report-page {{ margin:0 0 18px; padding:18px 22px; background:#ffffff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 10px 26px rgba(31,35,40,.08); }}
+main {{ width:100%; max-width:1120px; margin:0 auto; }}
+.report-page {{ width:100%; max-width:100%; margin:0 0 18px; padding:18px 22px; background:#ffffff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 10px 26px rgba(31,35,40,.08); overflow:hidden; }}
+section {{ max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }}
 header {{ border-bottom:1px solid #d0d7de; padding-bottom:12px; margin-bottom:14px; }}
-h1 {{ margin:0 0 4px; font-size:24px; font-weight:650; }}
+h1 {{ margin:0 0 4px; font-size:24px; font-weight:650; overflow-wrap:anywhere; }}
 h2 {{ margin:12px 0 8px; font-size:15px; border-bottom:1px solid #d0d7de; padding-bottom:5px; }}
 .sub,.muted {{ color:#57606a; font-size:12px; }}
-.cards {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; margin-bottom:12px; }}
+.cards {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; margin-bottom:12px; max-width:100%; }}
 .card {{ background:#f6f8fa; border:1px solid #d0d7de; border-radius:7px; padding:11px; }}
 .card b {{ display:block; font-size:17px; margin-bottom:3px; overflow-wrap:anywhere; line-height:1.18; }}
-table {{ width:100%; border-collapse:collapse; background:white; border:1px solid #d0d7de; border-radius:7px; overflow:hidden; font-size:10px; margin-bottom:8px; }}
+table {{ width:100%; min-width:520px; border-collapse:collapse; background:white; border:1px solid #d0d7de; border-radius:7px; overflow:hidden; font-size:10px; margin-bottom:8px; }}
 th,td {{ padding:5px 6px; border-bottom:1px solid #eaeef2; text-align:left; }}
 th {{ background:#f6f8fa; color:#57606a; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; }}
+td,th {{ overflow-wrap:anywhere; }}
 tr:last-child td {{ border-bottom:none; }}
-.figure {{ background:white; border:1px solid #d0d7de; border-radius:7px; padding:7px; margin-bottom:8px; text-align:center; }}
-.figure img,.figure svg {{ max-width:100%; max-height:330px; height:auto; object-fit:contain; }}
-.radar-wrap {{ display:grid; grid-template-columns:360px 1fr; gap:14px; align-items:center; background:white; border:1px solid #d0d7de; border-radius:7px; padding:10px; }}
+.figure {{ max-width:100%; overflow:hidden; background:white; border:1px solid #d0d7de; border-radius:7px; padding:7px; margin-bottom:8px; text-align:center; }}
+.figure img,.figure svg {{ display:block; width:100%; max-width:100%; max-height:330px; height:auto; object-fit:contain; }}
+.radar-wrap {{ max-width:100%; overflow:hidden; display:grid; grid-template-columns:minmax(0,360px) minmax(0,1fr); gap:14px; align-items:center; background:white; border:1px solid #d0d7de; border-radius:7px; padding:10px; }}
+.radar-wrap svg {{ width:100%; max-width:100%; height:auto; }}
 svg text {{ font-size:12px; fill:#57606a; }}
 .grid {{ fill:none; stroke:#d0d7de; stroke-width:1; }}
 .chart-grid {{ stroke:#d0d7de; stroke-width:1; }}
@@ -645,12 +649,13 @@ svg text {{ font-size:12px; fill:#57606a; }}
 .chart-legend {{ justify-content:center; margin-top:6px; }}
 .legend-item {{ font-size:13px; color:#57606a; display:inline-flex; align-items:center; gap:6px; }}
 .legend-item span {{ width:10px; height:10px; border-radius:50%; display:inline-block; }}
-.recon-grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-top:7px; }}
-.hull-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:6px; }}
-figure {{ margin:0; background:white; border:1px solid #d0d7de; border-radius:7px; padding:6px; }}
+.recon-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:7px; margin-top:7px; max-width:100%; }}
+.hull-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:6px; margin-top:6px; max-width:100%; }}
+figure {{ min-width:0; max-width:100%; overflow:hidden; margin:0; background:white; border:1px solid #d0d7de; border-radius:7px; padding:6px; }}
 figure img {{ width:100%; max-height:132px; object-fit:contain; display:block; }}
+figure svg {{ width:100%; max-width:100%; height:auto; display:block; }}
 .hull-grid figure img {{ max-height:155px; }}
-figcaption {{ color:#57606a; font-size:10px; margin-top:4px; }}
+figcaption {{ color:#57606a; font-size:10px; margin-top:4px; overflow-wrap:anywhere; }}
 .page-label {{ float:right; color:#848d97; font-size:11px; margin-top:4px; }}
 @page {{ size:A4 landscape; margin:0; }}
 @media print {{
@@ -680,7 +685,28 @@ figcaption {{ color:#57606a; font-size:10px; margin-top:4px; }}
   figcaption {{ font-size:6.5px; margin-top:2px; }}
   .page-label {{ font-size:8px; }}
 }}
-@media (max-width:800px) {{ .cards,.recon-grid,.radar-wrap {{ grid-template-columns:1fr; }} body {{ padding:14px; }} .report-page {{ min-height:0; }} }}
+@media (max-width:800px) {{
+  body {{ padding:12px; }}
+  .report-page {{ min-height:0; padding:14px; border-radius:7px; }}
+  .cards {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
+  .radar-wrap,.hull-grid {{ grid-template-columns:1fr; }}
+  .recon-grid {{ grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); }}
+  table {{ min-width:480px; }}
+  .figure img,.figure svg {{ max-height:none; }}
+}}
+@media (max-width:520px) {{
+  body {{ padding:8px; }}
+  .report-page {{ padding:10px; margin-bottom:10px; }}
+  h1 {{ font-size:19px; }}
+  h2 {{ font-size:13px; }}
+  .cards,.recon-grid,.hull-grid {{ grid-template-columns:1fr; }}
+  .card {{ padding:8px; }}
+  table {{ min-width:420px; font-size:9px; }}
+  th,td {{ padding:4px 5px; }}
+  .legend {{ gap:6px 10px; }}
+  .legend-item {{ font-size:11px; }}
+  figure img {{ max-height:none; }}
+}}
 </style>
 </head>
 <body>
