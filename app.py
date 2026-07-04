@@ -78,7 +78,14 @@ section[data-testid="stSidebar"]>div{
 }
 section[data-testid="stSidebar"]>div:first-child{padding:14px 12px!important;}
 section[data-testid="stSidebar"] *{
-  font-family:'JetBrains Mono',monospace!important;color:var(--tx2)!important;
+  color:var(--tx2)!important;
+}
+/* Excludes Streamlit's icon-font spans (e.g. the expander chevron) —
+   forcing them to JetBrains Mono makes their ligature name (like
+   "keyboard_arrow_right") render as literal text instead of a glyph,
+   overlapping the label next to it. */
+section[data-testid="stSidebar"] *:not([data-testid="stIconMaterial"]){
+  font-family:'JetBrains Mono',monospace!important;
 }
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
@@ -631,16 +638,37 @@ def apply_dashboard_filters(scores: Dict, per_run: Dict, mm: Dict,
 
 @st.cache_data
 def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="") -> Dict[str,Image.Image]:
-    images = {}
-    op = Path(outputs_dir) if outputs_dir else find_latest_run()
-    sd = op/"reconstructions"/f"level_{level}"/f"sample_{sample_id}"
-    if sd.exists():
-        for f in sd.glob("*.png"): images[f.stem] = Image.open(f)
-    ed = op/"error_overlays"
-    if ed.exists():
-        for f in ed.glob(f"*_sample_{sample_id}.png"):
-            k = f.stem.replace(f"_sample_{sample_id}","")
-            if k not in images: images[k] = Image.open(f)
+    """Load per-method reconstruction/overlay images for one sample+level.
+
+    Falls back across older run_* directories (newest first) for any
+    method not found in the primary run — mirrors load_merged_run_data's
+    score merging. Needed because a single-method "Run" click (sidebar)
+    creates a fresh run containing only that one method's images, while
+    other methods' scores keep showing via the score merge; without this,
+    every one of those other methods would show "No image" despite an
+    image existing in a previous run.
+    """
+    images: Dict[str, Image.Image] = {}
+
+    def _collect(op: Path) -> None:
+        sd = op/"reconstructions"/f"level_{level}"/f"sample_{sample_id}"
+        if sd.exists():
+            for f in sd.glob("*.png"):
+                if f.stem not in images: images[f.stem] = Image.open(f)
+        ed = op/"error_overlays"
+        if ed.exists():
+            for f in ed.glob(f"*_sample_{sample_id}.png"):
+                k = f.stem.replace(f"_sample_{sample_id}","")
+                if k not in images: images[k] = Image.open(f)
+
+    primary = Path(outputs_dir) if outputs_dir else find_latest_run()
+    _collect(primary)
+
+    if not outputs_dir:
+        for run_dir in sorted(Path("outputs").glob("run_*"), reverse=True):
+            if run_dir != primary:
+                _collect(run_dir)
+
     return images
 
 @st.cache_data
