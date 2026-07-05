@@ -90,6 +90,21 @@ def load_external_methods(plugin_paths: list[str]) -> None:
 
     Also discovers method bundles (subdirectories with ``method.yaml``) and
     auto-generates subprocess wrapper classes for them.
+
+    Two safety measures, both needed because these files come from
+    uploads, not from the framework's own codebase:
+
+    1. Raw CLI-contract scripts (KTC competition submissions shaped like
+       ``main() + argparse + if __name__ == "__main__":``) are skipped
+       entirely rather than imported. They're wrapped as isolated
+       subprocess methods instead (see ``adapters.plugin_detector`` /
+       ``adapters.cli_plugin_wrapper``) — importing one here would run its
+       top-level code (which is often unguarded: heavy ML imports, model
+       loading, etc.) inside this process, which is exactly what the
+       subprocess wrapper exists to avoid.
+    2. Each remaining file's import is individually wrapped in try/except
+       so one incompatible upload (e.g. missing dependency) can't abort
+       discovery for every other file in the folder.
     """
     for plugin_path in plugin_paths:
         path = Path(plugin_path).expanduser()
@@ -103,6 +118,9 @@ def load_external_methods(plugin_paths: list[str]) -> None:
             if file_path.name.startswith("_"):
                 continue
 
+            if _is_cli_contract_script(file_path):
+                continue
+
             module_name = f"ktc_external_method_{file_path.stem}"
             spec = importlib.util.spec_from_file_location(module_name, file_path)
 
@@ -110,13 +128,118 @@ def load_external_methods(plugin_paths: list[str]) -> None:
                 raise ImportError(f"Could not load method plugin: {file_path}")
 
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            try:
+                spec.loader.exec_module(module)
+            except Exception as exc:
+                import warnings
+                warnings.warn(
+                    f"Skipping method plugin '{file_path.name}': {exc}",
+                    RuntimeWarning, stacklevel=2,
+                )
+                continue
 
     try:
         load_bundle_methods(plugin_paths)
     except Exception as e:
         import warnings
         warnings.warn(f"Bundle discovery failed: {e}", RuntimeWarning, stacklevel=2)
+
+    try:
+        load_cli_scripts(plugin_paths)
+    except Exception as e:
+        import warnings
+        warnings.warn(f"CLI script discovery failed: {e}", RuntimeWarning, stacklevel=2)
+
+
+def load_cli_scripts(plugin_paths: list[str]) -> None:
+    """Discover raw KTC CLI-contract .py scripts and register each as an
+    isolated-subprocess CLIScriptPlugin.
+
+    Mirrors ``load_bundle_methods``, but for loose .py files shaped like a
+    raw KTC competition submission (``main()`` + argparse + ``__main__``)
+    instead of a ``method.yaml`` bundle.
+
+    Why this has to run here, in every fresh process
+    ----------------------------------------------------
+    The dashboard (app.py) already wraps and registers CLI-contract
+    uploads at upload time via ``register_cli_script`` — but that
+    registration only lives in the dashboard's own in-memory ``_METHODS``
+    dict. A benchmark run always launches a brand-new Python subprocess
+    (see app.py's ``launch_benchmark``), which starts with an empty
+    registry and has no knowledge of what the dashboard registered
+    earlier. Just like built-in methods re-register via their
+    ``@register`` decorators firing on import, and bundle methods
+    re-register via ``load_bundle_methods``, CLI-contract scripts need
+    their own rediscovery step here so ``methods: [<name>]`` in a YAML
+    config actually resolves to something instead of failing with
+    "not registered".
+
+    Naming: ``derive_cli_method_name(stem)`` is called with no collision
+    set, so it reproduces the exact same name ``register_cli_script``
+    assigned at upload time (and saved into the config) for the same
+    file — see that function's docstring for why the two must agree.
+    """
+    try:
+        from src.ktc_framework.adapters.plugin_detector import (
+            CONTRACT_CLI, PluginDetectionError, detect_contract,
+        )
+        from src.ktc_framework.adapters.cli_plugin_wrapper import (
+            create_cli_wrapper_class, derive_cli_method_name,
+        )
+    except ImportError as e:
+        import warnings
+        warnings.warn(f"Could not import CLI-script system: {e}", RuntimeWarning, stacklevel=2)
+        return
+
+    for plugin_path in plugin_paths:
+        path = Path(plugin_path).expanduser()
+        if not path.is_dir():
+            continue
+
+        for file_path in sorted(path.glob("*.py")):
+            if file_path.name.startswith("_"):
+                continue
+
+            try:
+                if detect_contract(file_path) != CONTRACT_CLI:
+                    continue
+            except PluginDetectionError:
+                continue
+
+            name = derive_cli_method_name(file_path.stem)
+            if name in _METHODS:
+                continue
+
+            try:
+                wrapper_cls = create_cli_wrapper_class(script_path=str(file_path), name=name)
+                register_method(wrapper_cls)
+            except Exception as exc:
+                import warnings
+                warnings.warn(
+                    f"Failed to wrap CLI script '{file_path.name}': {exc}",
+                    RuntimeWarning, stacklevel=2,
+                )
+                continue
+
+
+def _is_cli_contract_script(file_path: Path) -> bool:
+    """True if *file_path* is a raw KTC CLI-contract script.
+
+    Best-effort: if the classifier itself can't be imported or can't parse
+    the file, this returns False so the caller falls through to the normal
+    (pre-existing) import attempt rather than silently dropping the file.
+    """
+    try:
+        from src.ktc_framework.adapters.plugin_detector import (
+            CONTRACT_CLI, PluginDetectionError, detect_contract,
+        )
+    except ImportError:
+        return False
+
+    try:
+        return detect_contract(file_path) == CONTRACT_CLI
+    except PluginDetectionError:
+        return False
 
 
 def load_bundle_methods(plugin_paths: list[str]) -> None:
