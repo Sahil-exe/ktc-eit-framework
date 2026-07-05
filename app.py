@@ -20,6 +20,7 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import io
+import html
 from PIL import Image
 
 st.set_page_config(
@@ -78,7 +79,14 @@ section[data-testid="stSidebar"]>div{
 }
 section[data-testid="stSidebar"]>div:first-child{padding:14px 12px!important;}
 section[data-testid="stSidebar"] *{
-  font-family:'JetBrains Mono',monospace!important;color:var(--tx2)!important;
+  color:var(--tx2)!important;
+}
+/* Excludes Streamlit's icon-font spans (e.g. the expander chevron) —
+   forcing them to JetBrains Mono makes their ligature name (like
+   "keyboard_arrow_right") render as literal text instead of a glyph,
+   overlapping the label next to it. */
+section[data-testid="stSidebar"] *:not([data-testid="stIconMaterial"]){
+  font-family:'JetBrains Mono',monospace!important;
 }
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
@@ -238,11 +246,6 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 .streamlit-expanderContent{
   background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;
 }
-section[data-testid="stSidebar"] [data-testid="stExpander"] summary svg,
-section[data-testid="stSidebar"] [data-testid="stExpander"] summary [data-testid="stIconMaterial"],
-section[data-testid="stSidebar"] [data-testid="stExpander"] summary span[aria-hidden="true"]{
-  display:none!important;
-}
 
 /* -- typography -- */
 h1{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 3px!important;}
@@ -250,6 +253,21 @@ h2{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight
 h3{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx2)!important;margin:10px 0 6px!important;}
 p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:1.5!important;}
 .slbl{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;}
+
+/* -- hover-help icon: CSS-only tooltip, not the native title attribute.
+   Native title tooltips have an inconsistent ~1.5s hover delay, an
+   unstyled OS-native popup, and are unreliable inside embedded/iframe
+   contexts — the CSS ::after popup below is instant and always visible. */
+.info-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;flex:0 0 14px;margin-left:6px;border:1px solid var(--tx3);
+  border-radius:50%;font-size:9px;font-weight:700;color:var(--tx3);cursor:help;
+  text-transform:none;letter-spacing:normal;}
+.info-tip:hover,.info-tip:focus{color:#fff;background:var(--tx3);border-color:var(--tx3);}
+.info-tip:hover::after,.info-tip:focus::after{
+  content:attr(data-tip);position:absolute;left:0;top:135%;width:min(320px,60vw);
+  background:#1f2328;color:#fff;font-size:10px;font-weight:400;line-height:1.5;
+  text-transform:none;letter-spacing:normal;padding:9px 11px;border-radius:6px;
+  box-shadow:0 6px 16px rgba(0,0,0,.3);z-index:9999;white-space:normal;pointer-events:none;}
 
 /* -- header -- */
 .dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:14px 20px 13px;margin:0 0 12px;position:relative;overflow:hidden;}
@@ -310,48 +328,6 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
   text-align:center;
 }
 
-/* -- Add Method panel -- */
-.plugin-section-label{
-  font-family:'JetBrains Mono',monospace;
-  font-size:12px;
-  font-weight:700;
-  color:var(--tx3);
-  margin:10px 0 6px;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-}
-.plugin-empty,
-.plugin-help{
-  font-family:'JetBrains Mono',monospace;
-  font-size:12px;
-  color:var(--tx3);
-  line-height:1.45;
-  margin:4px 0 8px;
-}
-.plugin-item{
-  border:1px solid var(--bd);
-  border-radius:6px;
-  background:var(--bg);
-  padding:8px 9px;
-  margin:8px 0 6px;
-}
-.plugin-name{
-  font-family:'JetBrains Mono',monospace;
-  font-size:12px;
-  font-weight:600;
-  color:var(--tx2);
-  line-height:1.3;
-  overflow-wrap:anywhere;
-}
-.plugin-file{
-  font-family:'JetBrains Mono',monospace;
-  font-size:11px;
-  color:var(--tx3);
-  line-height:1.3;
-  margin-top:3px;
-  overflow-wrap:anywhere;
-}
-
 /* -- tier bar -- */
 .tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
 .tier-bar-fill{height:3px;background:var(--grn);border-radius:2px;}
@@ -392,92 +368,36 @@ section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondar
 }
 section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
   align-items:center!important;
-  gap:5px!important;
+  gap:6px!important;
 }
 section[data-testid="stSidebar"] [data-testid="stCheckbox"]{
-  min-height:26px!important;
-  height:auto!important;
+  min-height:32px!important;
   display:flex!important;
   align-items:center!important;
-  margin:2px 0 2px!important;
-  overflow:visible!important;
 }
 section[data-testid="stSidebar"] [data-testid="stCheckbox"] label{
   display:flex!important;
   align-items:center!important;
   gap:7px!important;
-  min-height:26px!important;
-  height:auto!important;
-  overflow:visible!important;
-}
-section[data-testid="stSidebar"] [data-testid="stCheckbox"] label > div:first-child,
-section[data-testid="stSidebar"] [data-testid="stCheckbox"] span[data-baseweb="checkbox"]{
-  flex:0 0 auto!important;
-  margin-top:0!important;
 }
 section[data-testid="stSidebar"] [data-testid="stCheckbox"] p{
   font-size:12px!important;
-  line-height:1.35!important;
+  line-height:1.25!important;
   color:var(--tx2)!important;
   margin:0!important;
   white-space:normal!important;
-  overflow:visible!important;
-  overflow-wrap:anywhere!important;
-  word-break:normal!important;
 }
-section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"],
-section[data-testid="stSidebar"] [data-testid="column"] [data-testid="stButton"]{
+section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"]{
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
-  width:100%!important;
-  margin:0!important;
 }
-section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"] button,
-section[data-testid="stSidebar"] [data-testid="column"] [data-testid="stButton"] button{
-  width:100%!important;
-  min-width:0!important;
-  height:28px!important;
-  min-height:28px!important;
-  padding:0 8px!important;
-  line-height:1!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  white-space:nowrap!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-}
-section[data-testid="stSidebar"] [data-testid="stButton"] button:disabled,
-section[data-testid="stSidebar"] [data-testid="stButton"] button[disabled],
-section[data-testid="stSidebar"] [data-testid^="stBaseButton"]:disabled,
-section[data-testid="stSidebar"] [data-testid^="stBaseButton"][disabled]{
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
   width:100%!important;
   min-width:0!important;
   height:30px!important;
   min-height:30px!important;
-  padding:0 8px!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  box-sizing:border-box!important;
-}
-section[data-testid="stSidebar"] [data-testid="stButton"] button p,
-section[data-testid="stSidebar"] [data-testid^="stBaseButton"] p{
-  width:100%!important;
-  text-align:center!important;
-  margin:0!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  white-space:nowrap!important;
-}
-section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"],
-section[data-testid="stSidebar"] [data-testid="column"] button[kind="secondary"]{
-  width:100%!important;
-  min-width:0!important;
-  height:30px!important;
-  min-height:30px!important;
-  padding:0 8px!important;
+  padding:0 4px!important;
   line-height:1!important;
   font-size:10px!important;
   white-space:nowrap!important;
@@ -572,210 +492,11 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
   font-size:12px!important;line-height:1.35!important;
   padding-top:7px!important;padding-bottom:7px!important;
   color:var(--tx)!important;opacity:1!important;
-  width:100%!important;
-  box-sizing:border-box!important;
-  display:flex!important;
-  align-items:center!important;
-  background:var(--sur)!important;
 }
 [data-baseweb="popover"] [role="option"] *,
 [data-baseweb="menu"] li *{color:var(--tx)!important;opacity:1!important;}
-[data-baseweb="popover"] [role="option"]:hover,
-[data-baseweb="popover"] [role="option"][aria-selected="true"],
-[data-baseweb="popover"] [role="option"][aria-current="true"],
-[data-baseweb="menu"] li:hover,
-[data-baseweb="menu"] li[aria-selected="true"],
-[data-baseweb="menu"] li[aria-current="true"]{
-  background:var(--grn-bg)!important;
-  color:var(--grn)!important;
-}
-[data-baseweb="popover"] [role="option"]:hover *,
-[data-baseweb="popover"] [role="option"][aria-selected="true"] *,
-[data-baseweb="popover"] [role="option"][aria-current="true"] *,
-[data-baseweb="menu"] li:hover *,
-[data-baseweb="menu"] li[aria-selected="true"] *,
-[data-baseweb="menu"] li[aria-current="true"] *{
-  background:transparent!important;
-  color:var(--grn)!important;
-}
 .stSlider,.stSelectbox,.stMultiSelect{margin-bottom:8px!important;}
-.stCheckbox{margin-bottom:3px!important;}
-section[data-testid="stSidebar"] .stCheckbox{margin-bottom:2px!important;}
-
-/* -- responsive page spacing: keep sidebar/main padding tight without changing sidebar width -- */
-[data-testid="stAppViewContainer"] > .main,
-[data-testid="stAppViewContainer"] > div:has(.main){
-  padding-left:0!important;
-}
-.main .block-container,
-[data-testid="stAppViewContainer"] .main .block-container{
-  padding:0 clamp(6px,.8vw,10px) 42px!important;
-  max-width:100%!important;
-}
-.dash-header,
-.kpi-row,
-.chips,
-.dataset-summary-row,
-.stTabs [data-baseweb="tab-list"]{
-  max-width:100%!important;
-}
-.kpi-row,
-.dataset-summary-row{
-  display:flex!important;
-  flex-wrap:wrap!important;
-  gap:10px!important;
-}
-.kpi{
-  flex:1 1 190px!important;
-  min-width:0!important;
-}
-.dataset-summary-card{
-  flex:0 0 132px!important;
-  min-width:0!important;
-}
-.dataset-summary-card:first-child{
-  flex:1 1 520px!important;
-}
-.chip,
-.kpi-s,
-.dataset-summary-card div{
-  overflow-wrap:anywhere!important;
-}
-@media (max-width: 900px){
-  .main .block-container,
-  [data-testid="stAppViewContainer"] .main .block-container{
-    padding:0 8px 34px!important;
-  }
-  .dash-header{padding:12px 14px!important;}
-  .kpi{flex-basis:calc(50% - 10px)!important;}
-  .dataset-summary-card,
-  .dataset-summary-card:first-child{flex-basis:100%!important;}
-}
-@media (max-width: 560px){
-  .main .block-container,
-  [data-testid="stAppViewContainer"] .main .block-container{
-    padding:0 6px 28px!important;
-  }
-  .kpi{flex-basis:100%!important;}
-  .stTabs [data-baseweb="tab"]{
-    flex:1 1 130px!important;
-    justify-content:center!important;
-  }
-}
-
-/* -- final responsive guardrails for charts, tables, and sidebar control rows -- */
-[data-testid="stVerticalBlock"],
-[data-testid="stHorizontalBlock"],
-[data-testid="stColumn"],
-[data-testid="stElementContainer"],
-[data-testid="stPlotlyChart"],
-[data-testid="stDataFrame"],
-.js-plotly-plot,
-.plot-container,
-.svg-container{
-  max-width:100%!important;
-  min-width:0!important;
-  box-sizing:border-box!important;
-}
-[data-testid="stPlotlyChart"],
-[data-testid="stDataFrame"],
-[data-testid="stTable"]{
-  overflow-x:auto!important;
-}
-[data-testid="stImage"] img,
-img{
-  max-width:100%!important;
-  height:auto!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
-  display:flex!important;
-  flex-wrap:nowrap!important;
-  width:100%!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > [data-testid^="stColumn"]{
-  min-width:0!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > [data-testid="column"]{
-  flex:1 1 0!important;
-  min-width:0!important;
-}
-@media (max-width: 760px){
-  .dash-title{font-size:16px!important;}
-  .dash-sub{font-size:11px!important;}
-  .kpi-row{gap:8px!important;}
-  .kpi{flex-basis:100%!important;}
-  .chips{gap:4px!important;}
-  .chip{max-width:100%!important;}
-  .dataset-summary-row{
-    gap:8px!important;
-  }
-  .dataset-summary-card,
-  .dataset-summary-card:first-child{
-    flex:1 1 100%!important;
-  }
-}
-@media (max-width: 420px){
-  .stTabs [data-baseweb="tab"]{
-    flex:1 1 100%!important;
-    min-width:0!important;
-  }
-  section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
-    gap:4px!important;
-  }
-  section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"] button,
-  section[data-testid="stSidebar"] [data-testid="column"] [data-testid="stButton"] button{
-    font-size:10px!important;
-    padding:0 6px!important;
-  }
-}
-
-/* Equalize paired sidebar action buttons such as Run History Load/Delete. */
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
-  align-items:stretch!important;
-  gap:5px!important;
-  margin:1px 0 6px!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"],
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"]{
-  flex:1 1 0!important;
-  width:0!important;
-  min-width:0!important;
-  display:flex!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] > div,
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stButton"],
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] > div,
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] [data-testid="stButton"]{
-  width:100%!important;
-  min-width:0!important;
-  display:flex!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] button,
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] button,
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid^="stBaseButton"],
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] [data-testid^="stBaseButton"]{
-  width:100%!important;
-  min-width:0!important;
-  height:30px!important;
-  min-height:30px!important;
-  max-height:30px!important;
-  padding:0 8px!important;
-  box-sizing:border-box!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] button p,
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] button p,
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stBaseButton"] p{
-  width:100%!important;
-  margin:0!important;
-  text-align:center!important;
-  line-height:1!important;
-  white-space:nowrap!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-}
+.stCheckbox{margin-bottom:2px!important;}
 </style>
 <script>
 (function(){
@@ -791,9 +512,10 @@ section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^
           el.style.setProperty('display','none','important');
         });
       });
-      /* 2. Also target raw Material icon fallback text in the sidebar. */
+      /* 2. Also target any leaf node in the sidebar whose text starts with
+         "keyboard" - that is the raw icon fallback text */
       doc.querySelectorAll('section[data-testid="stSidebar"] *').forEach(function(el){
-        if(!el.children.length && /^(keyboard|arrow|chevron)_/i.test((el.textContent||'').trim())){
+        if(!el.children.length && /^keyboard/i.test((el.textContent||'').trim())){
           el.style.setProperty('display','none','important');
         }
       });
@@ -820,9 +542,6 @@ COLORS = {
 }
 ALL_LEVELS = [1,2,3,4,5,6,7]
 COLORMAP = ListedColormap([COLORS['water'],COLORS['resistive'],COLORS['conductive']])
-PALETTE = ['#2da44e','#8250df','#0969da','#bf8700','#cf222e',
-           '#1a7f37','#d4a72c','#0550ae','#9a3ece','#068a39',
-           '#6366F1','#0EA5E9']
 
 
 def hex_to_rgba(hex_color: str, alpha: float = 0.1) -> str:
@@ -841,6 +560,7 @@ from src.ktc_framework.reporting.data_layer import (
     create_method_mapping,
     filter_by_level,
     count_gt_missing,
+    iter_run_dirs_newest_first,
 )
 
 
@@ -932,16 +652,37 @@ def apply_dashboard_filters(scores: Dict, per_run: Dict, mm: Dict,
 
 @st.cache_data
 def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="") -> Dict[str,Image.Image]:
-    images = {}
-    op = Path(outputs_dir) if outputs_dir else find_latest_run()
-    sd = op/"reconstructions"/f"level_{level}"/f"sample_{sample_id}"
-    if sd.exists():
-        for f in sd.glob("*.png"): images[f.stem] = Image.open(f)
-    ed = op/"error_overlays"
-    if ed.exists():
-        for f in ed.glob(f"*_sample_{sample_id}.png"):
-            k = f.stem.replace(f"_sample_{sample_id}","")
-            if k not in images: images[k] = Image.open(f)
+    """Load per-method reconstruction/overlay images for one sample+level.
+
+    Falls back across older run_* directories (newest first) for any
+    method not found in the primary run — mirrors load_merged_run_data's
+    score merging. Needed because a single-method "Run" click (sidebar)
+    creates a fresh run containing only that one method's images, while
+    other methods' scores keep showing via the score merge; without this,
+    every one of those other methods would show "No image" despite an
+    image existing in a previous run.
+    """
+    images: Dict[str, Image.Image] = {}
+
+    def _collect(op: Path) -> None:
+        sd = op/"reconstructions"/f"level_{level}"/f"sample_{sample_id}"
+        if sd.exists():
+            for f in sd.glob("*.png"):
+                if f.stem not in images: images[f.stem] = Image.open(f)
+        ed = op/"error_overlays"
+        if ed.exists():
+            for f in ed.glob(f"*_sample_{sample_id}.png"):
+                k = f.stem.replace(f"_sample_{sample_id}","")
+                if k not in images: images[k] = Image.open(f)
+
+    primary = Path(outputs_dir) if outputs_dir else find_latest_run()
+    _collect(primary)
+
+    if not outputs_dir:
+        for run_dir in iter_run_dirs_newest_first():
+            if run_dir != primary:
+                _collect(run_dir)
+
     return images
 
 @st.cache_data
@@ -979,8 +720,118 @@ def method_display_name(method_name: str) -> str:
     label = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", label)
     return " ".join(label.split()) or method_name
 
-def mcol(idx:int) -> str:
-    return PALETTE[idx % len(PALETTE)]
+# Single source of truth for method color across the whole dashboard —
+# leaderboard bars, method chips, radar chart, degradation curve, and
+# report exports must all look this dict up instead of deriving a color
+# from enumerate() index order. Index-based color assignment was the bug:
+# the chips legend enumerated scores.keys() in dict-insertion order while
+# the bar chart enumerated sorted(scores.keys()), so the same method got a
+# different index — and therefore a different color — in each place.
+# Colors are from the Okabe-Ito colorblind-safe palette.
+METHOD_COLORS: dict[str, str] = {
+    "main": "#0072B2",
+    "CompetitionCNN": "#D55E00",
+    "BackProjection": "#009E73",
+    "GaussNewton": "#E69F00",
+    "LinearDifferenceReconstruction": "#CC79A7",
+    "DampedLeastSquaresReconstruction": "#56B4E9",
+}
+
+_METHOD_COLOR_FALLBACK = "#64748B"
+
+
+def get_method_color(name: str) -> str:
+    """Return the fixed color for a method name.
+
+    Falls back to a fixed grey for any method not in METHOD_COLORS (custom
+    or future uploads aren't guaranteed a unique color, only a consistent
+    one across every chart that calls this).
+    """
+    return METHOD_COLORS.get(name, _METHOD_COLOR_FALLBACK)
+
+
+def render_empty_bar(fig: go.Figure, method_name: str, x_position) -> None:
+    """Add a zero-height 'No data' placeholder bar to *fig* at *x_position*.
+
+    For a method that's selected in the sidebar but has no run data yet
+    (see apply_dashboard_filters' synthesized zero-metric rows) — a
+    diagonal hatch + fixed grey distinguishes "not run" from a method that
+    genuinely scored zero, which get_method_color's normal per-method
+    colors would otherwise make indistinguishable from each other.
+    """
+    fig.add_trace(go.Bar(
+        name=method_name, x=[x_position], y=[0],
+        marker=dict(
+            color=_METHOD_COLOR_FALLBACK,
+            pattern=dict(shape="/", fgcolor="#94a3b8", bgcolor=_METHOD_COLOR_FALLBACK, size=6),
+        ),
+        showlegend=False,
+        hovertemplate=f"<b>{method_name}</b><br>No data<extra></extra>",
+    ))
+    fig.add_annotation(
+        x=x_position, y=0, yshift=14,
+        text="No data", showarrow=False,
+        font=dict(family="JetBrains Mono, monospace", size=9, color=_METHOD_COLOR_FALLBACK),
+    )
+
+
+def render_grade_key() -> None:
+    """Render a small, persistent grade-band legend strip (Streamlit).
+
+    Explains the letter-grade thresholds (matches letter_grade()'s
+    A/B/C/D cutoffs) so a bar's grade suffix is self-explanatory without
+    having to remember or look up the scale elsewhere.
+    """
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+        'color:var(--tx3);margin:2px 0 8px">'
+        'Grade bands: '
+        '<span style="color:#1a7f37">A &ge; 60 (green)</span> &middot; '
+        '<span style="color:#0969da">B &ge; 30 (blue)</span> &middot; '
+        '<span style="color:#9a6700">C &ge; 10 (amber)</span> &middot; '
+        '<span style="color:#cf222e">D &lt; 10 (red)</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+def render_section_header(title: str, tooltip: str = "") -> None:
+    """Render a small-caps section label with an optional hover-help icon.
+
+    Uses the CSS-only ".info-tip" popup (see stylesheet) instead of the
+    native HTML title attribute — title tooltips have an inconsistent
+    ~1.5s delay, no styling, and don't reliably show up in every browser
+    context, which made the earlier version effectively invisible.
+    """
+    icon_html = ""
+    if tooltip:
+        icon_html = f'<span class="info-tip" data-tip="{html.escape(tooltip)}">?</span>'
+    st.markdown(
+        f'<div class="slbl" style="display:flex;align-items:center">{title}{icon_html}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_what_why_how(what: str, why: str, how: str) -> None:
+    """Render a compact WHAT / WHY / HOW strip at the top of a tab.
+
+    WHAT is the plain-language framing sentence every tab already opens
+    with; WHY explains what decision this chart is meant to help with;
+    HOW explains, in one sentence, the actual calculation behind it —
+    so a first-time reader never has to guess what's on screen or trust
+    it blindly.
+    """
+    rows = [("WHAT", what, "#0969da"), ("WHY", why, "#8250df"), ("HOW", how, "#1a7f37")]
+    html_parts = ['<div style="margin-bottom:12px">']
+    for label, text, color in rows:
+        html_parts.append(
+            f'<div style="display:flex;gap:10px;margin-bottom:4px;font-family:\'JetBrains Mono\',monospace;'
+            f'font-size:11px;color:var(--tx2);line-height:1.5">'
+            f'<span style="flex:0 0 34px;font-weight:700;color:{color}">{label}</span>'
+            f'<span>{text}</span></div>'
+        )
+    html_parts.append('</div>')
+    st.markdown(''.join(html_parts), unsafe_allow_html=True)
+
 
 def build_leaderboard_df(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple=(1, 7)) -> pd.DataFrame:
     """Build the exact leaderboard data used by both dashboard and report export."""
@@ -1010,28 +861,22 @@ def build_leaderboard_df(scores: Dict, per_run: Dict, mm: Dict, level_range: tup
 def build_leaderboard_figure(scores: Dict, df: pd.DataFrame) -> go.Figure:
     """Build the exact leaderboard Plotly figure used on dashboard and in report PNG."""
     fig = go.Figure()
-    all_names = sorted(scores.keys())
-    col_map = {n: mcol(i) for i, n in enumerate(all_names)}
-    min_score = float(df['Composite Score'].min()) if not df.empty else 0.0
-    max_score = float(df['Composite Score'].max()) if not df.empty else 100.0
-    axis_min = min(0.0, np.floor(min_score / 10.0) * 10.0)
-    axis_max = max(100.0, np.ceil(max_score / 10.0) * 10.0) + 15.0
     for _, row in df.iterrows():
         fig.add_trace(go.Bar(
             name=row['Method'], x=[row['Composite Score']], y=[row['Method']],
             orientation='h',
-            marker_color=col_map.get(row['Method'], '#64748B'),
+            marker_color=get_method_color(row['Method']),
             text=f"{row['Composite Score']:.1f} ({row['Grade']})", textposition='outside',
             textfont=dict(family="JetBrains Mono", size=9, color="#1f2328"),
             hovertemplate=(f"<b>{row['Method']}</b><br>Score: {row['Composite Score']:.1f} ({row['Grade']})<br>"
                            f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
     fig.update_layout(
-        xaxis_title="Composite Score", yaxis_title="Method", xaxis_range=[axis_min, axis_max],
+        xaxis_title="Score (0-100)", yaxis_title="Method", xaxis_range=[0, 115],
         showlegend=False, height=max(320, 54 * len(df)),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
         font=dict(family="JetBrains Mono,monospace", color="#848d97", size=9),
-        xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9), zeroline=True, zerolinecolor='#8c959f'),
+        xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         margin=dict(l=150, r=50, t=20, b=38),
     )
@@ -1124,8 +969,6 @@ def write_runtime_config(method_name: str) -> Path:
         f"samples: {samples_yaml}\n\n"
         f"methods:\n  - {method_name}\n\n"
         "method_plugin_paths:\n  - external_methods\n\n"
-        "include_external_methods: false\n\n"
-        "merge_with_latest: true\n\n"
         "output_dir: outputs/\n",
         encoding="utf-8",
     )
@@ -1246,12 +1089,10 @@ def _render_failures_panel(run_dir: Path) -> None:
 def render_benchmark_status() -> None:
     """Sidebar status for the running/finished benchmark subprocess."""
     proc = st.session_state.get('bench_proc')
-    show_log_tail = False
     if proc is not None:
         code = proc.poll()
         cfg = st.session_state.get('bench_config', '')
         if code is None:
-            show_log_tail = True
             st.sidebar.markdown(
                 f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
                 f'color:var(--amb);margin:4px 0">RUNNING | {cfg}</div>',
@@ -1532,6 +1373,60 @@ def plugin_method_candidates(plugin_path: Path) -> List[str]:
     return names
 
 
+def is_cli_contract_script(plugin_path: Path) -> bool:
+    """True if *plugin_path* is a raw KTC CLI-contract script (main() +
+    argparse + if __name__ == '__main__'), as opposed to an in-process
+    reconstruct(self, batch) plugin. AST-only — never imports the file.
+
+    Returns False (not True) if the classifier can't be reached or the
+    file won't parse, so callers fall through to the existing in-process
+    path and get the normal "no usable method class found" message
+    instead of an opaque failure here.
+    """
+    try:
+        from src.ktc_framework.adapters.plugin_detector import (
+            CONTRACT_CLI, PluginDetectionError, detect_contract,
+        )
+    except ImportError:
+        return False
+
+    try:
+        return detect_contract(plugin_path) == CONTRACT_CLI
+    except PluginDetectionError:
+        return False
+
+
+def register_cli_script(script_path: Path) -> str:
+    """Wrap a raw KTC CLI-contract script as a CLIScriptPlugin and register
+    it under a name derived from the filename.
+
+    Runs as an isolated subprocess — never imported in-process, since these
+    scripts commonly have unguarded heavy top-level imports (see
+    ``registry.load_external_methods`` for why that matters).
+
+    Raw CLI submissions have no author-declared name the way method.yaml
+    bundles do (``manifest.name``) or in-process classes do (the class
+    name) — every KTC entry is conventionally just "main.py". So the name
+    is derived from the uploaded filename's stem via
+    ``derive_cli_method_name`` — the *same* function
+    ``registry.load_cli_scripts`` uses to re-discover this file inside a
+    fresh benchmark subprocess, so the name saved here into the YAML
+    config's ``methods:`` list is guaranteed to resolve to the same
+    wrapper at run time instead of failing with "not registered".
+    """
+    from src.ktc_framework.adapters.cli_plugin_wrapper import (
+        create_cli_wrapper_class, derive_cli_method_name,
+    )
+    from src.ktc_framework.registry import list_methods as _list_methods_
+    from src.ktc_framework.registry import register_method as _register_method_
+
+    name = derive_cli_method_name(script_path.stem, existing=set(_list_methods_()))
+
+    wrapper_cls = create_cli_wrapper_class(script_path=str(script_path), name=name)
+    _register_method_(wrapper_cls)
+    return name
+
+
 def discover_available_methods() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
     methods: List[str] = []
@@ -1553,30 +1448,6 @@ def discover_available_methods() -> List[str]:
         for file_path in ext_dir.glob("*.py"):
             for name in plugin_method_candidates(file_path):
                 external_methods_on_disk[name] = file_path.name
-        for bundle_dir in sorted(
-            d for d in ext_dir.iterdir()
-            if d.is_dir() and not d.name.startswith("_") and (d / "method.yaml").exists()
-        ):
-            try:
-                from src.ktc_framework.methods.manifest_loader import load_manifest
-                manifest = load_manifest(bundle_dir / "method.yaml")
-                external_methods_on_disk[manifest.name] = bundle_dir.name
-            except Exception:
-                pass
-
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
-    st.session_state.uploaded_methods = {
-        name: fname
-        for name, fname in st.session_state.uploaded_methods.items()
-        if ((name in external_methods_on_disk or name in configured_methods)
-                and name not in BUILTIN_METHODS
-                and name not in HIDDEN_METHODS
-                and name not in removed_external)
-    }
-    for name, fname in external_methods_on_disk.items():
-        if name not in BUILTIN_METHODS and name not in HIDDEN_METHODS and name not in removed_external:
-            st.session_state.uploaded_methods.setdefault(name, fname)
 
     def add(name: str):
         if (name and name not in methods and name not in HIDDEN_METHODS
@@ -1602,6 +1473,8 @@ def discover_available_methods() -> List[str]:
     for name in configured_methods:
         add(str(name))
 
+    if 'uploaded_methods' not in st.session_state:
+        st.session_state.uploaded_methods = {}
     for name in st.session_state.uploaded_methods.keys():
         add(name)
 
@@ -1619,10 +1492,7 @@ def discover_available_methods() -> List[str]:
             )
             if py_files or bundle_dirs_da:
                 _load_ext([str(ext_dir)])
-                discovered = sorted(
-                    name for name in set(_list_methods()) - before
-                    if name in external_methods_on_disk and name not in BUILTIN_METHODS
-                )
+                discovered = sorted(set(_list_methods()) - before)
                 for name in discovered:
                     fname = external_methods_on_disk.get(name) or next(
                         (f.name for f in py_files if name.lower() in f.stem.lower()), "")
@@ -1648,9 +1518,8 @@ def discover_available_methods() -> List[str]:
 # =========================================================
 # SIDEBAR
 # =========================================================
-def render_sidebar():
-    # -- Brand ------------------------------------------------
-    # Data-age label: read latest.txt mtime to tell user how fresh the dashboard is
+def _render_sidebar_brand():
+    """Brand header + data-freshness label (reads latest.txt mtime)."""
     import time as _time
     _lt = Path("outputs/latest.txt")
     if _lt.exists():
@@ -1674,7 +1543,9 @@ def render_sidebar():
     </div>
     """, unsafe_allow_html=True)
 
-    # -- Dataset Settings (B1 / B2 / B3) ------------------------------
+
+def _render_sidebar_dataset_settings():
+    """Dataset Settings expander (B1 / B2 / B3): root/mesh path inputs + Validate paths."""
     with st.sidebar.expander("Dataset Settings", expanded=False):
         st.markdown('<div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Dataset root</div>', unsafe_allow_html=True)
         st.text_input(
@@ -1730,25 +1601,17 @@ def render_sidebar():
                     unsafe_allow_html=True,
                 )
 
-    # -- Run Benchmark - one button drives the whole backend ---
+
+def _render_sidebar_run_benchmark():
+    """Run Benchmark section: ETA estimate, Run all / Refresh methods buttons, status."""
     st.sidebar.markdown("## Run Benchmark")
     # Estimate runtime: read method count from YAML (~4 min per method on real data)
     try:
         import yaml as _yaml
         _cfg_path = Path("configs/ktc_all_methods.yaml")
-        _configured_methods = [
-            str(m) for m in (_yaml.safe_load(_cfg_path.read_text()).get("methods", []) or [])
-        ]
-        _visible_methods = [m for m in _configured_methods if m not in HIDDEN_METHODS]
-        _available_methods = [
-            m for m in st.session_state.get('_available_methods', [])
-            if m not in HIDDEN_METHODS
-            and m not in st.session_state.get('_removed_external_methods', [])
-        ]
-        if _available_methods:
-            _visible_methods = _available_methods
-        _eta = f"~{len(_configured_methods) * 4} min"
-        _n_str = str(len(_visible_methods))
+        _n_methods = len(_yaml.safe_load(_cfg_path.read_text()).get("methods", []))
+        _eta = f"~{_n_methods * 4} min"
+        _n_str = str(_n_methods)
     except Exception:
         _eta = "several min"
         _n_str = "all"
@@ -1763,7 +1626,6 @@ def render_sidebar():
         if launch_benchmark(Path("configs/ktc_all_methods.yaml")):
             st.rerun()
 
-    # -- Run a chosen subset of methods -----------------------
     # Runs only the methods currently ticked in the METHODS checklist below.
     if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
         st.cache_data.clear()
@@ -1784,16 +1646,12 @@ def render_sidebar():
         )
     render_benchmark_status()
 
-    st.sidebar.markdown("---")
 
-    # -- Reset All Filters -------------------------------------
+def _render_sidebar_reset_filters():
+    """Reset All Filters button: restores metrics/methods/levels/samples to defaults."""
     if st.sidebar.button("Reset All Filters", key="reset_all_btn", use_container_width=True):
         st.session_state.selected_metrics  = ALL_METRICS_SIDEBAR.copy()
-        active_methods = set(st.session_state.get('_active_result_methods', []))
-        available_methods = st.session_state.get('_available_methods', [])
-        st.session_state.selected_methods  = [
-            m for m in available_methods if not active_methods or m in active_methods
-        ]
+        st.session_state.selected_methods  = st.session_state.get('_available_methods', []).copy()
         st.session_state.level_range       = (1, 7)
         st.session_state.selected_samples  = ['A', 'B', 'C']
         # clear checkbox widget state so they re-render checked
@@ -1805,9 +1663,9 @@ def render_sidebar():
             st.session_state[f'method_{m}'] = True
         st.rerun()
 
-    st.sidebar.markdown("---")
 
-    # -- Metric Selector --------------------------------------
+def _render_sidebar_metrics_selector():
+    """Metrics checklist — keeps selected_metrics in sync as new metrics appear."""
     st.sidebar.markdown("## Metrics")
     if 'selected_metrics' not in st.session_state:
         st.session_state.selected_metrics = ALL_METRICS_SIDEBAR.copy()
@@ -1830,44 +1688,18 @@ def render_sidebar():
             if m in st.session_state.selected_metrics:
                 st.session_state.selected_metrics.remove(m)
 
-    st.sidebar.markdown("---")
 
-    # -- Method Selector --------------------------------------
+def _render_sidebar_method_selector():
+    """Methods checklist — one row per method with inline Run + ✕ (external only) buttons."""
     st.sidebar.markdown("## Methods")
     removed_external = set(st.session_state.get('_removed_external_methods', []))
     available_methods = [
         m for m in st.session_state.get('_available_methods', [])
         if m not in removed_external
     ]
-    try:
-        import yaml as _yaml
-        _cfg_path = Path("configs/ktc_all_methods.yaml")
-        _cfg = _yaml.safe_load(_cfg_path.read_text(encoding="utf-8")) if _cfg_path.exists() else {}
-        configured_sidebar_methods = [
-            str(m) for m in ((_cfg or {}).get("methods", []) or [])
-            if str(m) not in HIDDEN_METHODS and str(m) not in removed_external
-        ]
-    except Exception:
-        configured_sidebar_methods = []
-    for m in configured_sidebar_methods + list(st.session_state.get('uploaded_methods', {}).keys()):
-        if m not in available_methods and m not in HIDDEN_METHODS and m not in removed_external:
-            available_methods.append(m)
     st.session_state['_available_methods'] = available_methods
-    try:
-        active_scores, _active_per_run = load_run_data(find_latest_run())
-        active_result_methods = {
-            m for m in active_scores.keys()
-            if m not in HIDDEN_METHODS and m not in removed_external
-        }
-    except Exception:
-        active_result_methods = set()
-    st.session_state['_active_result_methods'] = sorted(active_result_methods)
-    previous_active_result_methods = set(st.session_state.get('_known_active_result_methods', []))
-    newly_active_result_methods = active_result_methods - previous_active_result_methods
     if 'selected_methods' not in st.session_state:
-        st.session_state.selected_methods = [
-            m for m in available_methods if not active_result_methods or m in active_result_methods
-        ]
+        st.session_state.selected_methods = available_methods.copy()
     previous_available = st.session_state.get('_known_available_methods', [])
     newly_available = [m for m in available_methods if m not in previous_available]
     if newly_available:
@@ -1875,50 +1707,26 @@ def render_sidebar():
             m for m in st.session_state.selected_methods if m in available_methods
         ]
         for m in newly_available:
-            if m in active_result_methods and m not in st.session_state.selected_methods:
+            if m not in st.session_state.selected_methods:
                 st.session_state.selected_methods.append(m)
-    if active_result_methods:
-        st.session_state.selected_methods = [
-            m for m in st.session_state.selected_methods if m in active_result_methods
-        ]
-        for m in available_methods:
-            if m in newly_active_result_methods and m not in st.session_state.selected_methods:
-                st.session_state.selected_methods.append(m)
-                st.session_state[f"method_{m}"] = True
-        if not st.session_state.selected_methods and newly_active_result_methods:
-            st.session_state.selected_methods = [
-                m for m in available_methods if m in active_result_methods
-            ]
-            for m in st.session_state.selected_methods:
-                st.session_state[f"method_{m}"] = True
     st.session_state['_known_available_methods'] = available_methods.copy()
-    st.session_state['_known_active_result_methods'] = sorted(active_result_methods)
 
     _uploaded = st.session_state.get('uploaded_methods', {})
 
     if available_methods:
         for m in available_methods:
             display_name = method_display_name(m)
-            is_external = m in _uploaded or m not in BUILTIN_METHODS
-            has_active_results = not active_result_methods or m in active_result_methods
-            if not has_active_results:
-                st.session_state[f"method_{m}"] = False
-            checked = has_active_results and m in st.session_state.selected_methods
-            label = display_name if has_active_results else f"{display_name} (not run)"
+            checked = m in st.session_state.selected_methods
+            is_external = m in _uploaded
 
             # Row: [checkbox  |  Run  |  ✕ (external only)]
-            new_val = st.sidebar.checkbox(
-                label,
-                value=checked,
-                key=f"method_{m}",
-                disabled=not has_active_results,
-                help=None if has_active_results else "Run this method first to show it in charts.",
-            )
+            _chk_col, _run_col, _del_col = st.sidebar.columns([5, 2, 1])
+            with _chk_col:
+                new_val = st.checkbox(display_name, value=checked, key=f"method_{m}")
             if new_val and m not in st.session_state.selected_methods:
                 st.session_state.selected_methods.append(m)
             elif not new_val and m in st.session_state.selected_methods:
                 st.session_state.selected_methods.remove(m)
-            _run_col, _del_col = st.sidebar.columns([1, 1], gap="small")
             with _run_col:
                 if st.button("Run", key=f"mrun_{m}", use_container_width=True,
                              help=f"Benchmark {display_name} now"):
@@ -1927,45 +1735,30 @@ def render_sidebar():
                         st.rerun()
             with _del_col:
                 if is_external:
-                    if st.button("Remove", key=f"mdel_{m}", use_container_width=True, help="Remove plugin"):
-                        _fname = _uploaded.get(m)
+                    if st.button("✕", key=f"mdel_{m}", help="Remove plugin"):
+                        _fname = _uploaded.get(m, m)
                         try:
                             from src.ktc_framework.registry import unregister_method as _unreg
                             _unreg(m)
                         except Exception:
                             pass
-                        _tgt = Path("external_methods") / _fname if _fname else None
-                        if _tgt is None:
-                            ext_dir = Path("external_methods")
-                            _tgt = next(
-                                (p for p in ext_dir.glob("*.py") if m in plugin_method_candidates(p)),
-                                None,
-                            ) if ext_dir.exists() else None
-                        if _tgt is not None:
-                            if _tgt.is_dir():
-                                shutil.rmtree(_tgt, ignore_errors=True)
-                            else:
-                                _tgt.unlink(missing_ok=True)
+                        _tgt = Path("external_methods") / _fname
+                        if _tgt.is_dir():
+                            shutil.rmtree(_tgt, ignore_errors=True)
+                        else:
+                            _tgt.unlink(missing_ok=True)
                         remove_method_from_config(m)
                         remove_external_method_state(m)
                         reset_method_upload_widget()
                         st.cache_data.clear()
                         st.session_state['_method_refresh_msg'] = f"Removed: {m}"
                         st.rerun()
-                else:
-                    st.button(
-                        "Remove",
-                        key=f"mdel_disabled_{m}",
-                        use_container_width=True,
-                        disabled=True,
-                        help="Built-in methods cannot be removed.",
-                    )
     else:
         st.sidebar.markdown('<div style="font-size:11px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
 
-    st.sidebar.markdown("---")
 
-    # -- Level Filter -----------------------------------------
+def _render_sidebar_level_filter():
+    """Level Filter: from/to level range, clamped and swapped if reversed."""
     st.sidebar.markdown("## Level Filter")
     if 'level_range' not in st.session_state:
         st.session_state.level_range = (1, 7)
@@ -1987,9 +1780,9 @@ def render_sidebar():
         f'color:var(--tx3);margin-top:-4px">Showing levels {lvl_min}-{lvl_max}</div>',
         unsafe_allow_html=True)
 
-    st.sidebar.markdown("---")
 
-    # -- Sample Filter -----------------------------------------
+def _render_sidebar_sample_filter():
+    """Sample Filter: A/B/C checkboxes."""
     st.sidebar.markdown("## Samples")
     if 'selected_samples' not in st.session_state:
         st.session_state.selected_samples = ['A','B','C']
@@ -2002,36 +1795,15 @@ def render_sidebar():
             if s in st.session_state.selected_samples:
                 st.session_state.selected_samples.remove(s)
 
-    st.sidebar.markdown("---")
 
-    # -- Add / Register external methods ----------------------
-    st.sidebar.markdown("## Add Method")
-
-    # -- 1. Scan button - always visible ----------------------
-    #    Picks up any .py already in external_methods/ so the user
-    #    doesn't have to re-upload files that are already on disk.
+def _render_scan_external_methods_button():
+    """Scan button - always visible. Picks up any .py already in
+    external_methods/ so the user doesn't have to re-upload files that
+    are already on disk."""
     from src.ktc_framework.registry import (
-        get_method as _get_method, list_methods as _list_methods,
+        list_methods as _list_methods,
         load_external_methods as _load_ext,
     )
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
-    ext_dir_for_panel = Path("external_methods")
-    if ext_dir_for_panel.exists():
-        disk_plugins = {
-            name: file_path.name
-            for file_path in ext_dir_for_panel.glob("*.py")
-            for name in plugin_method_candidates(file_path)
-            if name not in BUILTIN_METHODS and name not in HIDDEN_METHODS and name not in removed_external
-        }
-        st.session_state.uploaded_methods = {
-            name: fname
-            for name, fname in st.session_state.uploaded_methods.items()
-            if name in disk_plugins and name not in removed_external
-        }
-        for name, fname in disk_plugins.items():
-            st.session_state.uploaded_methods.setdefault(name, fname)
 
     if st.sidebar.button("Scan external_methods/", key="scan_ext_btn",
                          use_container_width=True,
@@ -2061,20 +1833,37 @@ def render_sidebar():
                 available_after = set(_list_methods())
 
                 ready_methods = sorted(
-                    {
-                        name
-                        for names in candidates_by_file.values()
-                        for name in names
-                        if name in available_after and name not in BUILTIN_METHODS
-                    }
+                    {nm for nms in candidates_by_file.values() for nm in nms if nm in available_after}
                 )
-                new_methods = sorted(name for name in available_after - before if name in ready_methods)
+                new_methods = sorted(available_after - before)
                 for nm in ready_methods:
                     fname = next(
                         (f.name for f in py_files if nm.lower() in f.stem.lower()),
                         py_files[0].name if py_files else "",
                     )
                     st.session_state.uploaded_methods[nm] = fname
+
+                # ── raw CLI-contract scripts (main() + argparse + __main__) ──
+                # load_external_methods() already skips these when importing
+                # .py files (see registry.py), so they never show up in
+                # candidates_by_file / ready_methods above. Wrap each one not
+                # already registered from a previous scan as a CLIScriptPlugin
+                # instead of silently dropping it.
+                cli_found = []
+                already_registered_files = set(st.session_state.uploaded_methods.values())
+                for file_path in py_files:
+                    if file_path.name in already_registered_files:
+                        continue  # wrapped in a prior scan
+                    if file_path.name in candidates_by_file and candidates_by_file[file_path.name]:
+                        continue  # already handled as an in-process class
+                    if not is_cli_contract_script(file_path):
+                        continue
+                    try:
+                        cli_name = register_cli_script(file_path)
+                        st.session_state.uploaded_methods[cli_name] = file_path.name
+                        cli_found.append(cli_name)
+                    except Exception as exc:
+                        st.sidebar.warning(f"Could not wrap {file_path.name} as a CLI method: {exc}")
 
                 # ── bundle dirs ───────────────────────────────────────────
                 bundle_found = []
@@ -2088,7 +1877,7 @@ def render_sidebar():
                     except Exception as _be:
                         st.sidebar.warning(f"Skipping bundle {bd.name}: {_be}")
 
-                all_found = sorted(set(ready_methods) | set(bundle_found))
+                all_found = sorted(set(ready_methods) | set(bundle_found) | set(cli_found))
                 removed = set(st.session_state.get('_removed_external_methods', []))
                 removed.difference_update(all_found)
                 st.session_state['_removed_external_methods'] = sorted(removed)
@@ -2101,7 +1890,7 @@ def render_sidebar():
                 if all_found:
                     for nm in all_found:
                         append_method_to_config(nm)
-                    label = "Found" if (new_methods or bundle_found) else "Already registered"
+                    label = "Found" if (new_methods or bundle_found or cli_found) else "Already registered"
                     st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(all_found)}"
                     if auto_fixed:
                         st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
@@ -2111,54 +1900,136 @@ def render_sidebar():
             except Exception as exc:
                 st.sidebar.error(f"Scan failed: {exc}")
 
-    # -- 2. Registered methods - always show with action buttons -
-    if st.session_state.uploaded_methods:
-        st.sidebar.markdown(
-            '<div class="plugin-section-label">Registered plugins</div>',
-            unsafe_allow_html=True)
-        for nm, fname in list(st.session_state.uploaded_methods.items()):
-            st.sidebar.markdown(
-                f'<div class="plugin-item">'
-                f'<div class="plugin-name">{nm}</div>'
-                f'<div class="plugin-file">{fname}</div>'
-                f'</div>',
-                unsafe_allow_html=True)
-            ca, cb = st.sidebar.columns([1, 1], gap="small")
-            if ca.button("Add", key=f"cfg_{nm}",
-                         help="Add to ktc_all_methods.yaml and benchmark this plugin now"):
-                append_method_to_config(nm)
-                cfg_path = write_runtime_config(nm)
-                if launch_benchmark(cfg_path):
-                    st.rerun()
-            if cb.button("Remove", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
-                try:
-                    from src.ktc_framework.registry import unregister_method as _unregister_method
-                    _unregister_method(nm)
-                except Exception:
-                    pass
-                plugin_path = Path("external_methods") / fname
-                if plugin_path.is_dir():
-                    shutil.rmtree(plugin_path, ignore_errors=True)
-                else:
-                    plugin_path.unlink(missing_ok=True)
-                remove_method_from_config(nm)
-                remove_external_method_state(nm)
-                reset_method_upload_widget()
-                st.cache_data.clear()
-                st.session_state['_method_refresh_msg'] = f"Removed: {nm}"
-                st.rerun()
-    else:
-        st.sidebar.markdown(
-            '<div class="plugin-empty">No plugins yet. Upload .py or scan.</div>',
-            unsafe_allow_html=True)
 
-    # -- 3. Upload new plugin ---------------------------------
+def _handle_zip_plugin_upload(up, dest_dir: Path) -> None:
+    """Extract and register an uploaded .zip as a method.yaml bundle."""
+    try:
+        from src.ktc_framework.methods.manifest_loader import extract_bundle, load_manifest, ManifestError
+        from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
+        from src.ktc_framework.registry import register_method as _register_method
+        bundle_name = Path(up.name).stem
+        bundle_dest = dest_dir / bundle_name
+        tmp_zip = dest_dir / up.name
+        tmp_zip.write_bytes(up.getbuffer())
+        bundle_dir = extract_bundle(tmp_zip, bundle_dest)
+        manifest = load_manifest(bundle_dir / "method.yaml")
+        wrapper_cls = create_wrapper_class(manifest)
+        _register_method(wrapper_cls)
+        st.session_state.uploaded_methods[manifest.name] = bundle_dest.name
+        append_method_to_config(manifest.name)
+        st.session_state['_method_refresh_msg'] = f"Registered bundle: {manifest.name}"
+        reset_method_upload_widget()
+        tmp_zip.unlink(missing_ok=True)
+        st.rerun()
+    except Exception as exc:
+        shutil.rmtree(dest_dir / up.name.rsplit(".", 1)[0], ignore_errors=True)
+        st.sidebar.error(
+            f"Bundle rejected: {exc}\n\n"
+            "Your zip must contain method.yaml at its root:\n"
+            "  my_method.zip\n"
+            "  ├── method.yaml   ← required\n"
+            "  ├── main_python.py\n"
+            "  └── model.h5      ← optional weights\n\n"
+            "Raw GitHub repo zips do not work — package only the "
+            "files your solver needs, with method.yaml alongside them."
+        )
+
+
+def _handle_py_plugin_upload(up, dest_dir: Path, before: set) -> None:
+    """Register an uploaded .py as either a raw CLI-contract script (run
+    as an isolated subprocess) or an in-process reconstruct(self, batch)
+    class — classified BEFORE any attempt to import/exec the file."""
+    from src.ktc_framework.registry import (
+        get_method as _get_method, list_methods as _list_methods,
+        load_external_methods as _load_ext,
+    )
+
+    dest = dest_dir / Path(up.name).name
+    dest.write_bytes(up.getbuffer())
+
+    # Classify BEFORE any attempt to import/exec the file. A raw
+    # CLI-contract script (main() + argparse + __main__) commonly
+    # has unguarded heavy top-level imports (TensorFlow, model
+    # loading, ...) — it must never be exec'd inside this
+    # process, only run as an isolated subprocess.
+    if is_cli_contract_script(dest):
+        try:
+            cli_name = register_cli_script(dest)
+            st.session_state.uploaded_methods[cli_name] = dest.name
+            append_method_to_config(cli_name)
+            removed = set(st.session_state.get('_removed_external_methods', []))
+            removed.discard(cli_name)
+            st.session_state['_removed_external_methods'] = sorted(removed)
+            current_available = st.session_state.get('_available_methods', [])
+            if cli_name not in current_available:
+                current_available.append(cli_name)
+            st.session_state['_available_methods'] = current_available
+            st.session_state['_method_refresh_msg'] = (
+                f"Registered CLI method: {cli_name} (runs as an isolated subprocess)"
+            )
+            reset_method_upload_widget()
+            st.rerun()
+        except Exception as exc:
+            dest.unlink(missing_ok=True)
+            st.sidebar.error(f"Rejected {dest.name}: {exc}")
+    else:
+        try:
+            auto_fixed = ensure_method_plugin_registered(dest)
+            candidate_names = plugin_method_candidates(dest)
+            _load_ext([str(dest_dir)])
+            available_after = set(_list_methods())
+            new_methods = sorted(name for name in candidate_names if name not in before and name in available_after)
+            ready_methods = sorted(
+                nm for nm in candidate_names if nm in available_after
+            )
+            if ready_methods:
+                for nm in ready_methods:
+                    if not callable(getattr(_get_method(nm), "reconstruct", None)):
+                        st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
+                    st.session_state.uploaded_methods[nm] = dest.name
+                    append_method_to_config(nm)
+                removed = set(st.session_state.get('_removed_external_methods', []))
+                removed.difference_update(ready_methods)
+                st.session_state['_removed_external_methods'] = sorted(removed)
+                current_available = st.session_state.get('_available_methods', [])
+                for nm in ready_methods:
+                    if nm not in current_available:
+                        current_available.append(nm)
+                st.session_state['_available_methods'] = current_available
+                label = "Registered" if new_methods else "Already registered"
+                st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
+                if auto_fixed:
+                    st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                reset_method_upload_widget()
+                st.rerun()
+            else:
+                dest.unlink(missing_ok=True)
+                st.sidebar.warning(
+                    "No usable method class found - file removed. "
+                    "Add a class with reconstruct(self, batch), decorate it with "
+                    "@register_method, or upload a raw KTC CLI script "
+                    "(main() + argparse + if __name__ == '__main__')."
+                )
+        except Exception as exc:
+            dest.unlink(missing_ok=True)
+            st.sidebar.error(f"Rejected {dest.name}: {exc}")
+
+
+def _render_upload_new_plugin_widget():
+    """Upload new plugin widget: accepts .py (in-process class or raw CLI
+    script) or .zip (method.yaml bundle)."""
+    from src.ktc_framework.registry import list_methods as _list_methods
+
     st.sidebar.markdown(
-        '<div class="plugin-section-label">Upload new plugin</div>',
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:var(--tx3);margin:8px 0 5px;text-transform:uppercase;'
+        'letter-spacing:.1em">Upload new plugin</div>',
         unsafe_allow_html=True)
     st.sidebar.markdown(
-        '<div class="plugin-help">'
-        '<b style="color:var(--tx2)">.py</b> — class with <code>reconstruct(self, batch)</code><br>'
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:var(--tx3);line-height:1.55;margin-bottom:6px">'
+        '<b style="color:var(--tx2)">.py</b> — class with <code>reconstruct(self, batch)</code>, '
+        'or a raw KTC CLI script (<code>main()</code> + argparse)<br>'
         '<b style="color:var(--tx2)">.zip</b> — ML bundle with <code>method.yaml</code> at root</div>',
         unsafe_allow_html=True)
     upload_key = f"method_upload_{st.session_state.get('_method_upload_nonce', 0)}"
@@ -2173,86 +2044,23 @@ def render_sidebar():
             before = set(_list_methods())
 
             if up.name.endswith(".zip"):
-                try:
-                    from src.ktc_framework.methods.manifest_loader import extract_bundle, load_manifest, ManifestError
-                    from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
-                    bundle_name = Path(up.name).stem
-                    bundle_dest = dest_dir / bundle_name
-                    tmp_zip = dest_dir / up.name
-                    tmp_zip.write_bytes(up.getbuffer())
-                    bundle_dir = extract_bundle(tmp_zip, bundle_dest)
-                    manifest = load_manifest(bundle_dir / "method.yaml")
-                    wrapper_cls = create_wrapper_class(manifest)
-                    register_method(wrapper_cls)
-                    st.session_state.uploaded_methods[manifest.name] = bundle_dest.name
-                    append_method_to_config(manifest.name)
-                    st.session_state['_method_refresh_msg'] = f"Registered bundle: {manifest.name}"
-                    reset_method_upload_widget()
-                    tmp_zip.unlink(missing_ok=True)
-                    st.rerun()
-                except Exception as exc:
-                    shutil.rmtree(dest_dir / up.name.rsplit(".", 1)[0], ignore_errors=True)
-                    st.sidebar.error(
-                        f"Bundle rejected: {exc}\n\n"
-                        "Your zip must contain method.yaml at its root:\n"
-                        "  my_method.zip\n"
-                        "  ├── method.yaml   ← required\n"
-                        "  ├── main_python.py\n"
-                        "  └── model.h5      ← optional weights\n\n"
-                        "Raw GitHub repo zips do not work — package only the "
-                        "files your solver needs, with method.yaml alongside them."
-                    )
+                _handle_zip_plugin_upload(up, dest_dir)
             else:
-                dest = dest_dir / Path(up.name).name
-                dest.write_bytes(up.getbuffer())
-                try:
-                    auto_fixed = ensure_method_plugin_registered(dest)
-                    candidate_names = plugin_method_candidates(dest)
-                    _load_ext([str(dest_dir)])
-                    available_after = set(_list_methods())
-                    new_methods = sorted(name for name in candidate_names if name not in before and name in available_after)
-                    ready_methods = sorted(
-                        nm for nm in candidate_names if nm in available_after
-                    )
-                    if ready_methods:
-                        for nm in ready_methods:
-                            if not callable(getattr(_get_method(nm), "reconstruct", None)):
-                                st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
-                            st.session_state.uploaded_methods[nm] = dest.name
-                            append_method_to_config(nm)
-                        removed = set(st.session_state.get('_removed_external_methods', []))
-                        removed.difference_update(ready_methods)
-                        st.session_state['_removed_external_methods'] = sorted(removed)
-                        current_available = st.session_state.get('_available_methods', [])
-                        for nm in ready_methods:
-                            if nm not in current_available:
-                                current_available.append(nm)
-                        st.session_state['_available_methods'] = current_available
-                        label = "Registered" if new_methods else "Already registered"
-                        st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
-                        if auto_fixed:
-                            st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
-                        reset_method_upload_widget()
-                        st.rerun()
-                    else:
-                        dest.unlink(missing_ok=True)
-                        st.sidebar.warning(
-                            "No usable method class found - file removed. "
-                            "Add a class with reconstruct(self, batch), or decorate it with @register_method."
-                        )
-                except Exception as exc:
-                    dest.unlink(missing_ok=True)
-                    st.sidebar.error(f"Rejected {dest.name}: {exc}")
+                _handle_py_plugin_upload(up, dest_dir, before)
 
-    # -- Export -----------------------------------------------
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("## Export")
-    if st.sidebar.button("Export HTML Report", use_container_width=True, key="pdf_sidebar_btn"):
-        st.session_state['_trigger_pdf'] = True
-    pdf_export_slot = st.sidebar.empty()
 
-    # -- Run selector ------------------------------------------
-    st.sidebar.markdown("---")
+def _render_sidebar_add_method():
+    """Add Method: Scan external_methods/ button, then Upload new plugin (.py/.zip)."""
+    st.sidebar.markdown("## Add Method")
+    if 'uploaded_methods' not in st.session_state:
+        st.session_state.uploaded_methods = {}
+
+    _render_scan_external_methods_button()
+    _render_upload_new_plugin_widget()
+
+
+def _render_sidebar_run_history():
+    """Run History: load/delete past runs, re-run failed samples, preview scores."""
     st.sidebar.markdown("## Run History")
     runs_root = Path("outputs")
     def _dashboard_run_has_data(run_dir: Path) -> bool:
@@ -2285,34 +2093,33 @@ def render_sidebar():
 
         default_idx = run_names.index(current_run) if current_run in run_names else 0
         # C1: rich labels with status icon + failure count
-        if st.session_state.get('_selected_run_active') != current_run:
-            st.session_state.selected_run = current_run if current_run in run_names else run_names[default_idx]
-            st.session_state['_selected_run_active'] = current_run
         chosen_run = st.sidebar.selectbox(
             "Load run:", run_names, index=default_idx, key="selected_run",
             label_visibility="collapsed",
             format_func=lambda name: _run_label(runs_root / name))
 
-        if st.sidebar.button("Load", key="load_run_btn", use_container_width=True):
-            selected_path = runs_root / chosen_run
-            (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
-            st.session_state.pop("_confirm_delete_run", None)
-            st.cache_data.clear()
-            st.rerun()
-
-        # C2: delete run with confirmation
-        _active_is_chosen = chosen_run == current_run
-        if st.sidebar.button("Delete", key="delete_run_btn", use_container_width=True,
-                             help="Delete this run from disk"):
-            if _active_is_chosen:
-                st.sidebar.info("Cannot delete the currently active run.")
-            else:
+        c_load, c_del = st.sidebar.columns(2)
+        with c_load:
+            if st.button("Load", key="load_run_btn", use_container_width=True):
+                selected_path = runs_root / chosen_run
+                (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
+                st.session_state.pop("_confirm_delete_run", None)
+                st.cache_data.clear()
+                st.rerun()
+        with c_del:
+            # C2: delete run with confirmation
+            _active_is_chosen = chosen_run == current_run
+            if st.button(
+                "Delete", key="delete_run_btn", use_container_width=True,
+                disabled=_active_is_chosen,
+                help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
+            ):
                 st.session_state["_confirm_delete_run"] = chosen_run
 
         _pending_del = st.session_state.get("_confirm_delete_run")
         if _pending_del and _pending_del == chosen_run:
             st.sidebar.warning(f"Delete **{_pending_del}**? This cannot be undone.")
-            c_yes, c_no = st.sidebar.columns([1, 1], gap="small")
+            c_yes, c_no = st.sidebar.columns(2)
             with c_yes:
                 if st.button("Yes", key="confirm_del_yes", use_container_width=True):
                     shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
@@ -2357,6 +2164,45 @@ def render_sidebar():
         st.sidebar.markdown(
             '<div style="font-size:11px;color:var(--tx3);margin:4px 0">No runs yet.<br>Run example_usage.py first.</div>',
             unsafe_allow_html=True)
+
+
+def render_sidebar():
+    _render_sidebar_brand()
+    _render_sidebar_dataset_settings()
+    _render_sidebar_run_benchmark()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_reset_filters()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_metrics_selector()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_method_selector()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_level_filter()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_sample_filter()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_add_method()
+
+    # -- Export -----------------------------------------------
+    # Kept inline (not its own helper): the st.empty() placeholder created
+    # here must be returned so main() can render the HTML export into this
+    # exact sidebar slot later in the script run.
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## Export")
+    if st.sidebar.button("Export HTML Report", use_container_width=True, key="pdf_sidebar_btn"):
+        st.session_state['_trigger_pdf'] = True
+    pdf_export_slot = st.sidebar.empty()
+
+    st.sidebar.markdown("---")
+    _render_sidebar_run_history()
+
+    return pdf_export_slot
     return pdf_export_slot
 
 # =========================================================
@@ -2369,6 +2215,16 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         mm = {}
     lvl_min, lvl_max = level_range
 
+    render_what_why_how(
+        what="Every method was run on the same set of tests, so this is a direct, "
+             "apples-to-apples ranking — from the strongest overall result to the weakest.",
+        why="With 6+ methods and dozens of metrics each, you need one trustworthy number "
+            "to answer \"which method should I actually use?\" before digging into the details.",
+        how="Each method's per-test KTC scores are averaged, then rescaled to a 0-100 "
+            "Composite Score and assigned a letter grade (A-D) using the bands shown "
+            "under the chart below.",
+    )
+
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);'
@@ -2379,56 +2235,127 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
 
     # KPI cards - exact mockup spec
     gc = df['Grade'].value_counts()
+    std_tip = ("Standard deviation measures how spread out the methods' scores are around this "
+               "average. A small number means most methods land close to the average (the field is "
+               "bunched together); a large number means scores are spread wide apart (some methods "
+               "far ahead of or behind the rest).")
     kpis = [
-        (f"{df.iloc[0]['Composite Score']:.1f}", "TOP SCORE",  df.iloc[0]['Method'][:22], "--c1"),
-        (f"{df['Composite Score'].mean():.1f}",  "AVG SCORE",  f"std = {df['Composite Score'].std():.1f}", "--c2"),
-        (str(len(df)),                           "METHODS",    f"{gc.get('A',0)}A  {gc.get('B',0)}B  {gc.get('C',0)}C  {gc.get('D',0)}D", "--c3"),
-        (f"{df['KTC Score'].max():.4f}",         "BEST KTC",   "higher is better", "--c4"),
+        (f"{df.iloc[0]['Composite Score']:.1f}", "TOP SCORE",  df.iloc[0]['Method'][:22], "--c1", ""),
+        (f"{df['Composite Score'].mean():.1f}",  "AVG SCORE",  f"std = {df['Composite Score'].std():.1f}", "--c2", std_tip),
+        (str(len(df)),                           "METHODS",    f"{gc.get('A',0)}A  {gc.get('B',0)}B  {gc.get('C',0)}C  {gc.get('D',0)}D", "--c3", ""),
+        (f"{df['KTC Score'].max():.4f}",         "BEST KTC",   "higher is better", "--c4", ""),
     ]
     kpi_html = '<div class="kpi-row">'
-    for num, lbl, sub, kc in kpis:
-        kpi_html += f'<div class="kpi" style="--kc:var({kc})"><div class="kpi-n">{num}</div><div class="kpi-l">{lbl}</div><div class="kpi-s">{sub}</div></div>'
+    for num, lbl, sub, kc, tip in kpis:
+        icon = f'<span class="info-tip" data-tip="{html.escape(tip)}">?</span>' if tip else ''
+        kpi_html += (f'<div class="kpi" style="--kc:var({kc})">'
+                     f'<div class="kpi-n">{num}</div>'
+                     f'<div class="kpi-l" style="display:flex;align-items:center">{lbl}{icon}</div>'
+                     f'<div class="kpi-s">{sub}</div></div>')
     kpi_html += '</div>'
     st.markdown(kpi_html, unsafe_allow_html=True)
 
+    # "How big is the lead" flash card — the single most tweetable fact on
+    # this tab: is 1st place clearly ahead, or is it basically a tie?
+    if len(df) >= 2:
+        leader, runner_up = df.iloc[0], df.iloc[1]
+        gap = leader['Composite Score'] - runner_up['Composite Score']
+        if gap < 2:
+            gap_story = f"a virtual tie with {runner_up['Method']} ({gap:.1f} pts apart)"
+        elif gap < 10:
+            gap_story = f"a modest lead over {runner_up['Method']} ({gap:.1f} pts ahead)"
+        else:
+            gap_story = f"a clear lead over {runner_up['Method']} ({gap:.1f} pts ahead)"
+
+        # Why is the leader winning — is its edge coming from spotting the
+        # resistive object, the conductive object, or both about equally?
+        # Composite Score itself is KTC-only (see composite_score.py), so a
+        # higher score doesn't say which shape drove it — Dice per-class
+        # does, since Dice ~1 means that shape was found well and ~0 means
+        # it was missed.
+        source_html = ""
+        res_cols_ok = {'Dice Resistive', 'Dice Conductive'} <= set(df.columns)
+        if res_cols_ok:
+            res_gap = leader['Dice Resistive'] - runner_up['Dice Resistive']
+            con_gap = leader['Dice Conductive'] - runner_up['Dice Conductive']
+            if abs(res_gap) < 0.02 and abs(con_gap) < 0.02:
+                source = "its lead isn't concentrated in either shape — it's just slightly better all round."
+            elif abs(res_gap - con_gap) < 0.02:
+                source = "it's ahead on both the resistive and conductive object about equally."
+            elif res_gap > con_gap:
+                source = (f"the edge comes mainly from the <b>resistive</b> object "
+                          f"(Dice Resistive +{res_gap:.3f} vs. +{con_gap:.3f} on conductive).")
+            else:
+                source = (f"the edge comes mainly from the <b>conductive</b> object "
+                          f"(Dice Conductive +{con_gap:.3f} vs. +{res_gap:.3f} on resistive).")
+            source_html = f'<br><span style="color:var(--tx2)">Why: {source}</span>'
+
+        st.markdown(
+            f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;'
+            f'padding:10px 14px;margin-bottom:14px;font-family:\'JetBrains Mono\',monospace;'
+            f'font-size:11px;color:var(--tx)">'
+            f'<b>{leader["Method"]}</b> is winning with {gap_story}.{source_html}</div>',
+            unsafe_allow_html=True,
+        )
+
     # Method chips
     chips_html = '<div class="chips">'
-    for i, name in enumerate(scores.keys()):
-        chips_html += f'<span class="chip"><span class="chip-dot" style="background:{mcol(i)}"></span>{name}</span>'
+    for name in scores.keys():
+        chips_html += f'<span class="chip"><span class="chip-dot" style="background:{get_method_color(name)}"></span>{name}</span>'
     chips_html += '</div>'
     st.markdown(chips_html, unsafe_allow_html=True)
 
     # Bar chart
-    st.markdown('<div class="slbl">METHOD RANKINGS - KTC SCORE</div>', unsafe_allow_html=True)
+    render_section_header(
+        "METHOD RANKINGS - KTC SCORE",
+        "Each bar is one method's overall Composite Score (0-100, higher is better). "
+        "The label on top of each bar also shows its letter grade. Hover a bar to see "
+        "its raw KTC score alongside the scaled composite score.",
+    )
+    render_grade_key()
     fig = go.Figure()
-    all_names = sorted(scores.keys())
-    col_map = {n: mcol(i) for i, n in enumerate(all_names)}
-    min_score = float(df['Composite Score'].min()) if not df.empty else 0.0
-    max_score = float(df['Composite Score'].max()) if not df.empty else 100.0
-    y_min = min(0.0, np.floor(min_score / 10.0) * 10.0)
-    y_max = max(100.0, np.ceil(max_score / 10.0) * 10.0) + 15.0
     for _, row in df.iterrows():
+        if not per_run.get(row['Method']):
+            render_empty_bar(fig, row['Method'], row['Method'])
+            continue
         fig.add_trace(go.Bar(
             name=row['Method'], x=[row['Method']], y=[row['Composite Score']],
-            marker_color=col_map.get(row['Method'], '#64748B'),
+            marker_color=get_method_color(row['Method']),
             text=f"{row['Composite Score']:.1f} ({row['Grade']})", textposition='outside',
             textfont=dict(family="JetBrains Mono", size=9, color="#1f2328"),
             hovertemplate=(f"<b>{row['Method']}</b><br>Score: {row['Composite Score']:.1f} ({row['Grade']})<br>"
                            f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
+    # Let bars extend both above AND below the zero line instead of clipping
+    # negative composite scores at a hard floor of 0 — same idea as Excel's
+    # default "expenses" chart: positive bars rise, negative bars drop below
+    # a shared, clearly-marked zero axis.
+    y_vals = df['Composite Score']
+    y_min = min(0, y_vals.min() - 15) if not df.empty else -15
+    y_max = max(115, y_vals.max() + 15) if not df.empty else 115
     fig.update_layout(
-        xaxis_title="Method", yaxis_title="Composite Score", yaxis_range=[y_min, y_max],
+        xaxis_title="Method", yaxis_title="Score (0-100)", yaxis_range=[y_min, y_max],
         showlegend=False, height=380,
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
         font=dict(family="JetBrains Mono,monospace", color="#848d97", size=9),
         xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
-        yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9), zeroline=True, zerolinecolor='#8c959f'),
+        yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9),
+                   zeroline=True, zerolinecolor='#57606a', zerolinewidth=1.5),
         margin=dict(l=0, r=10, t=20, b=30),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    st.caption(
+        "X-axis: method under test. Y-axis: Composite Score, a 0-100 rescaling of the raw KTC "
+        "score (0 line marks the 'no better than predicting nothing' baseline). Bars can dip "
+        "below zero for methods that scored worse than that baseline."
+    )
 
     # Table - filter columns by selected metrics in real time
-    st.markdown('<div class="slbl">DETAILED METRICS</div>', unsafe_allow_html=True)
+    render_section_header(
+        "DETAILED METRICS",
+        "The exact numeric value behind every bar and grade above, plus any other metrics "
+        "you've selected in the sidebar — useful for double-checking a specific number.",
+    )
 
     # Build full display_df first — round all numeric columns to 4 dp
     display_df = df.copy()
@@ -2485,12 +2412,8 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
     lvl_min, lvl_max = level_range
     dm = all_methods(scores)
     # Default: all methods so the full run is visible immediately.
-    chosen = st.multiselect(
-        "Select methods:",
-        dm,
-        default=[m for m in dm if m not in st.session_state.get('custom_methods', [])],
-        format_func=method_display_name,
-    )
+    chosen = st.multiselect("Select methods:", dm,
+        default=[m for m in dm if m not in st.session_state.get('custom_methods',[])])
 
     if not chosen:
         st.info("Select at least one method.")
@@ -2508,72 +2431,129 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
     pt  = pc.get('text',   '#848d97')
     pleg= pc.get('legend', 'rgba(255,255,255,.9)')
 
+    # One plain-language question this whole chart exists to answer — read
+    # this first, then the chart just confirms it visually.
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx2);margin-bottom:8px">'
+        'As reconstructions get harder (level 1 = easiest, 7 = hardest), which method keeps its score up?</div>',
+        unsafe_allow_html=True)
+
+    render_section_header(
+        "SCORE vs. DIFFICULTY LEVEL",
+        "Each line is one method's average KTC score at each difficulty level. A flatter, "
+        "higher line is better — it means the method stays accurate even as the test gets "
+        "harder. A line that drops sharply or zig-zags means that method is unreliable on "
+        "harder tests.",
+    )
     fig = go.Figure()
     stats = []
-    for i, disp_name in enumerate(chosen):
+    for disp_name in chosen:
         ik = mm.get(disp_name)
         if not ik or ik not in per_run: continue
         samps = filter_by_level(per_run[ik], lvl_min, lvl_max)
         if not samps:
             continue
 
-        # x = difficulty level; y = mean KTC over that level's samples;
-        # band = +/-1 std across the samples within each level
+        # x = difficulty level; y = mean KTC over that level's samples.
+        # No confidence band / std-dev dashed line / per-sample dots here —
+        # those are three extra statistical concepts (variance, mean-of-
+        # means, raw scatter) layered on top of the one line a first-time
+        # viewer actually needs to read. One clean line per method only.
         levels   = sorted({int(e['level']) for e in samps.values()})
         by_level = {lv: [e['ktc_score'] for e in samps.values() if int(e['level']) == lv]
                     for lv in levels}
         ktc = [float(np.mean(by_level[lv])) for lv in levels]
         sds = [float(np.std(by_level[lv]))  for lv in levels]
         x   = levels
-        c   = mcol(i)
-        mu  = np.mean(ktc); sd = np.std(ktc)
-        upper = [v + s for v, s in zip(ktc, sds)]; lower = [max(0, v - s) for v, s in zip(ktc, sds)]
-        # Confidence band
-        fig.add_trace(go.Scatter(
-            x=x+x[::-1], y=upper+lower[::-1],
-            fill='toself', fillcolor=hex_to_rgba(c, 0.10),
-            line=dict(width=0), showlegend=False, hoverinfo='skip'))
-        # Main line
-        fig.add_trace(go.Scatter(x=x, y=ktc, mode='lines+markers', name=disp_name,
-            line=dict(width=2.5, color=c),
-            marker=dict(size=7, color=c, line=dict(width=2, color='#ffffff')),
-            hovertemplate=f"<b>{disp_name}</b><br>Level: %{{x}}<br>KTC: %{{y:.4f}}<extra></extra>"))
-        # Horizontal mean line
-        fig.add_trace(go.Scatter(
-            x=[min(x), max(x)], y=[mu, mu],
-            mode='lines', line=dict(width=1, color=c, dash='dot'),
-            showlegend=False, hoverinfo='skip'))
+        c   = get_method_color(disp_name)
+        mu  = float(np.mean(ktc)); sd = float(np.std(ktc))
+        label = method_display_name(disp_name)
+
+        fig.add_trace(go.Scatter(x=x, y=ktc, mode='lines+markers', name=label,
+            line=dict(width=3, color=c),
+            marker=dict(size=8, color=c, line=dict(width=2, color='#ffffff')),
+            hovertemplate=f"<b>{label}</b><br>Level: %{{x}}<br>Score: %{{y:.2f}}<extra></extra>"))
+
+        # Failure rate: fraction of samples scoring below the D-grade cutoff
+        # (raw KTC < 0.10, same threshold letter_grade() uses for the whole
+        # dashboard) — split into the easier vs. harder half of the levels
+        # actually shown, so "gets worse with difficulty" is a real percentage
+        # rather than just a lower average.
+        FAIL_THRESHOLD = 0.10
+        half = max(1, len(levels) // 2)
+        easy_levels, hard_levels = levels[:half], levels[half:] or levels[-1:]
+        easy_samples = [v for lv in easy_levels for v in by_level[lv]]
+        hard_samples = [v for lv in hard_levels for v in by_level[lv]]
+        easy_fail_pct = 100.0 * sum(v < FAIL_THRESHOLD for v in easy_samples) / len(easy_samples) if easy_samples else 0.0
+        hard_fail_pct = 100.0 * sum(v < FAIL_THRESHOLD for v in hard_samples) / len(hard_samples) if hard_samples else 0.0
+
         stats.append({'Method':disp_name,'Mean KTC':mu,'Std Dev':sd,
-                      'Min':np.min(ktc),'Max':np.max(ktc),'Range':np.max(ktc)-np.min(ktc)})
+                      'Min':np.min(ktc),'Max':np.max(ktc),'Range':np.max(ktc)-np.min(ktc),
+                      'Fail % (Easy Levels)':easy_fail_pct,'Fail % (Hard Levels)':hard_fail_pct})
 
     fig.update_layout(
-        title=f"KTC Score - Levels {lvl_min}-{lvl_max}",
-        xaxis_title="Difficulty Level", yaxis_title="KTC Score (higher = better)",
+        xaxis_title="Difficulty Level (1 = easiest, 7 = hardest)",
+        yaxis_title="Score (higher = better)",
         height=420, hovermode='x unified',
         paper_bgcolor=pp, plot_bgcolor=pb,
         font=dict(family="JetBrains Mono,monospace", color=pt, size=9),
         xaxis=dict(gridcolor=pg, linecolor=pg),
         yaxis=dict(gridcolor=pg, linecolor=pg),
         legend=dict(bgcolor=pleg, bordercolor=pg, borderwidth=1, font=dict(size=9)),
-        margin=dict(l=0, r=0, t=36, b=30),
+        margin=dict(l=0, r=0, t=20, b=30),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    st.caption(
+        "X-axis: difficulty level. Y-axis: mean KTC score across that level's samples. "
+        "In the table below, Std Dev is the standard deviation of a method's own level-by-level "
+        "scores — it measures consistency, not accuracy: a low Std Dev means the method performs "
+        "about the same at every difficulty level (predictable), while a high Std Dev means its "
+        "score swings a lot between levels (inconsistent), even if its average is decent."
+    )
 
     if stats:
-        st.markdown('<div class="slbl">KTC STATISTICS</div>', unsafe_allow_html=True)
-        st.dataframe(pd.DataFrame(stats).round(4), use_container_width=True, hide_index=True)
-
         best  = max(stats, key=lambda r: r['Mean KTC'])
         worst = max(stats, key=lambda r: r['Std Dev'])
+
+        # The headline statistical statement: how much more often does each
+        # method outright fail (D-grade territory) on the harder half of
+        # levels vs. the easier half? Reported as a real percentage, not
+        # just "the average goes down".
+        biggest_degrader = max(stats, key=lambda r: r['Fail % (Hard Levels)'] - r['Fail % (Easy Levels)'])
+        deg_gap = biggest_degrader['Fail % (Hard Levels)'] - biggest_degrader['Fail % (Easy Levels)']
+        avg_easy_fail = float(np.mean([r['Fail % (Easy Levels)'] for r in stats]))
+        avg_hard_fail = float(np.mean([r['Fail % (Hard Levels)'] for r in stats]))
+
         st.markdown(
-            f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;padding:10px 14px;margin-top:8px">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;font-weight:600;color:var(--grn);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">KEY INSIGHTS</div>'
+            f'<div style="background:var(--warn-bg);border:1px solid var(--warn-bd);'
+            f'border-radius:7px;padding:10px 14px;margin-top:8px;margin-bottom:8px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;font-weight:600;color:var(--amb);'
+            f'text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">The Statistic</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx);line-height:1.6">'
-            f'- Best average KTC: <b>{best["Method"]}</b> ({best["Mean KTC"]:.4f})<br>'
-            f'- Most variability: <b>{worst["Method"]}</b> (std = {worst["Std Dev"]:.4f})<br>'
-            f'- Shaded bands = +/-1 std deviation. Narrower = more consistent performance.'
+            f'- On the harder half of levels shown, methods score below the D-grade cutoff (KTC &lt; 0.10) '
+            f'on <b>{avg_hard_fail:.0f}%</b> of tests on average, vs. <b>{avg_easy_fail:.0f}%</b> on the easier half.<br>'
+            f'- <b>{method_display_name(biggest_degrader["Method"])}</b> degrades the most: it fails on '
+            f'<b>{biggest_degrader["Fail % (Easy Levels)"]:.0f}%</b> of the easiest tests but '
+            f'<b>{biggest_degrader["Fail % (Hard Levels)"]:.0f}%</b> of the hardest ones '
+            f'(+{deg_gap:.0f} points as difficulty rises).'
             f'</div></div>',
             unsafe_allow_html=True)
+
+        st.markdown(
+            f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;padding:10px 14px;margin-top:8px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;font-weight:600;color:var(--grn);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">In Plain Terms</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx);line-height:1.6">'
+            f'- <b>{method_display_name(best["Method"])}</b> scores highest on average — the strongest choice overall.<br>'
+            f'- <b>{method_display_name(worst["Method"])}</b> jumps around the most from level to level — its results are the least predictable.'
+            f'</div></div>',
+            unsafe_allow_html=True)
+
+        with st.expander("Full numbers per method", expanded=False):
+            st.caption(
+                "Fail % columns: share of that method's samples scoring below the D-grade cutoff "
+                "(KTC < 0.10) on the easier vs. harder half of the levels currently shown."
+            )
+            st.dataframe(pd.DataFrame(stats).round(4), use_container_width=True, hide_index=True)
 
 # =========================================================
 # VIEW 3 - COMPARISON  (original logic)
@@ -2582,6 +2562,12 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     if not per_run:
         st.warning("No per-run metrics available.")
         return
+
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx2);margin-bottom:8px">'
+        'Pick two methods and one test — see exactly where they agree or disagree, '
+        'and what each one actually reconstructed.</div>',
+        unsafe_allow_html=True)
 
     # Map sidebar metric display names to internal per_run keys
     # Which internal keys to show - driven by sel_metrics
@@ -2599,12 +2585,17 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
         entries = per_run[fi]  # fallback: show all if filter leaves nothing
     levels_avail = sorted({int(e['level']) for e in entries.values()}) or ALL_LEVELS
 
+    # Explicit keys pin each widget to a stable identity across reruns —
+    # without them, Streamlit derives an id from label+options+index, so if
+    # the options list (dm/levels_avail/samps) ever reorders between runs,
+    # the widget can be treated as "new" and silently reset to its default
+    # index, which would show a stale method/level pairing below.
     c1,c2,c3,c4 = st.columns(4)
-    m1  = c1.selectbox("Method 1:", dm, index=0)
-    m2  = c2.selectbox("Method 2:", dm, index=min(1,len(dm)-1))
-    lvl = c3.selectbox("Level:", levels_avail, index=0)
+    m1  = c1.selectbox("Method 1:", dm, index=0, key="cmp_m1")
+    m2  = c2.selectbox("Method 2:", dm, index=min(1,len(dm)-1), key="cmp_m2")
+    lvl = c3.selectbox("Level:", levels_avail, index=0, key="cmp_lvl")
     samps = sorted({e['sample'] for e in entries.values() if int(e['level']) == lvl})
-    sid = c4.selectbox("Sample:", samps) if samps else None
+    sid = c4.selectbox("Sample:", samps, key="cmp_sample") if samps else None
 
     m1i = mm.get(m1)
     m2i = mm.get(m2)
@@ -2623,23 +2614,72 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     met2 = per_run.get(m2i or m2, {}).get(run_key, {}) if not p2 else {}
 
     # Metric comparison table - only show selected metrics
-    st.markdown('<div class="slbl">METRIC COMPARISON</div>', unsafe_allow_html=True)
+    render_section_header(
+        "METRIC COMPARISON",
+        "Side-by-side scores for the two chosen methods on this exact test (same level, same "
+        "sample). 'Diff' is the absolute difference between them — the larger it is, the more "
+        "the two methods disagree on that particular metric.",
+    )
     keys_to_show = [k for k in show_keys if k in met1 or k in met2]
     if not keys_to_show:
         st.info("No selected metrics are available for this sample.")
         return
-    comp_data = [{'Metric': k.replace('_',' ').title(),
+    comp_data = [{'Metric': k.replace('_',' ').title(), 'MetricKey': k,
                   m1: met1.get(k,0), m2: met2.get(k,0),
                   'Diff': abs(met1.get(k,0)-met2.get(k,0))}
                  for k in keys_to_show]
     comp_df = pd.DataFrame(comp_data)
+    if not comp_df.empty:
+        biggest = comp_df.loc[comp_df['Diff'].idxmax()]
+        mkey = biggest['MetricKey']
+        v1, v2 = biggest[m1], biggest[m2]
+        winner, loser = (m1, m2) if v1 > v2 else (m2, m1)
+        gap = biggest['Diff']
+
+        # All of these metrics are shape-overlap scores on [0, 1] (ktc_score
+        # can dip slightly negative below the water baseline) where higher =
+        # better overlap with the true object — so the gap translates
+        # directly into "how much better did the winner actually see this
+        # object", not just an abstract number.
+        if mkey == 'ktc_score':
+            subject = "the overall reconstruction"
+        else:
+            cls = "resistive" if "resistive" in mkey else "conductive" if "conductive" in mkey else "shape"
+            subject = f"the {cls} object"
+        if gap >= 0.7:
+            meaning = (f"That's a night-and-day difference: {method_display_name(winner)} nearly nailed "
+                       f"{subject}, while {method_display_name(loser)} almost completely missed it.")
+        elif gap >= 0.3:
+            meaning = (f"That's a substantial difference: {method_display_name(winner)} captured "
+                       f"{subject} noticeably better than {method_display_name(loser)}.")
+        elif gap >= 0.1:
+            meaning = (f"That's a modest difference — {method_display_name(winner)} edges out "
+                       f"{method_display_name(loser)} here, but both are in the same ballpark.")
+        else:
+            meaning = "That's a small enough gap that the two methods are effectively tied on this metric."
+
+        st.markdown(
+            f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;'
+            f'padding:10px 14px;margin-bottom:14px;font-family:\'JetBrains Mono\',monospace;'
+            f'font-size:11px;color:var(--tx)">'
+            f'<b>{m1}</b> and <b>{m2}</b> differ most on <b>{biggest["Metric"]}</b> — '
+            f'a gap of {gap:.4f}.<br>'
+            f'<span style="color:var(--tx2)">{meaning}</span></div>',
+            unsafe_allow_html=True,
+        )
     for col in [m1, m2, 'Diff']:
         if col in comp_df.columns:
             comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
+    comp_df = comp_df.drop(columns=['MetricKey'], errors='ignore')
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
     # Visual comparison - images from backend
-    st.markdown('<div class="slbl">VISUAL COMPARISON</div>', unsafe_allow_html=True)
+    render_section_header(
+        "VISUAL COMPARISON",
+        "The actual reconstructed image each method produced for this test, next to the ground "
+        "truth panel above — so you can see with your own eyes what the numbers above are "
+        "describing.",
+    )
     panel = load_comparison_panel(sid)
     if panel:
         st.markdown(f"All Methods - Sample {sid}")
@@ -2751,6 +2791,55 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
                 'Composite scores below zero are expected for poorly-initialised solvers.</div>',
                 unsafe_allow_html=True)
 
+    # -- Root cause analysis table -----------------------------
+    if root_causes:
+        st.markdown('<div class="slbl">ROOT CAUSE ANALYSIS - FAILING RUNS (C + D GRADE)</div>', unsafe_allow_html=True)
+        rc_df = pd.DataFrame(root_causes)
+
+        def _rc_color(grade):
+            return '#ffebe9' if grade == 'D' else '#fff8c5'
+
+        rows_html2 = ''
+        for _, row in rc_df.iterrows():
+            bg = _rc_color(row['Grade'])
+            rows_html2 += f'<tr style="background:{bg}">'
+            for col in rc_df.columns:
+                rows_html2 += (f'<td style="font-family:\'JetBrains Mono\',monospace;'
+                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid var(--bd);'
+                               f'color:var(--tx)">{row[col]}</td>')
+            rows_html2 += '</tr>'
+        hdrs2 = ''.join(
+            f'<th style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+            f'text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);'
+            f'padding:4px 8px;border-bottom:1px solid var(--bd);background:var(--bg)">{c}</th>'
+            for c in rc_df.columns)
+        st.markdown(
+            f'<div style="border:1px solid var(--bd);border-radius:7px;overflow:hidden">'
+            f'<table style="width:100%;border-collapse:collapse">'
+            f'<thead><tr>{hdrs2}</tr></thead><tbody>{rows_html2}</tbody></table></div>',
+            unsafe_allow_html=True)
+
+        # Patterns by level / sample
+        st.markdown('<div class="slbl" style="margin-top:12px">FAILURE PATTERNS BY SAMPLE</div>', unsafe_allow_html=True)
+        level_counts = {}
+        for r in root_causes:
+            key = str(r['Sample'])
+            level_counts[key] = level_counts.get(key, 0) + 1
+        if level_counts:
+            lc_df = pd.DataFrame([{'Sample': k, 'Failures': v}
+                                   for k, v in sorted(level_counts.items())])
+            st.dataframe(lc_df, use_container_width=True, hide_index=True)
+
+        # Patterns by method
+        st.markdown('<div class="slbl" style="margin-top:8px">FAILURE PATTERNS BY METHOD</div>', unsafe_allow_html=True)
+        method_fail = {}
+        for r in root_causes:
+            method_fail[r['Method']] = method_fail.get(r['Method'], 0) + 1
+        if method_fail:
+            mf_df = pd.DataFrame([{'Method': k, 'Failures': v}
+                                   for k, v in sorted(method_fail.items(), key=lambda x: -x[1])])
+            st.dataframe(mf_df, use_container_width=True, hide_index=True)
+
     st.markdown("---")
 
     # -- Per-method worst-3 cards (lowest KTC = worst, level-filtered) -
@@ -2801,6 +2890,12 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     if not scores:
         st.warning("No scores available.")
         return
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx2);margin-bottom:8px">'
+        'A single score can hide the full picture — this compares methods across several metrics at once. '
+        'A bigger, more even shape means a more well-rounded method; a spiky shape means it\'s great at some '
+        'things and weak at others.</div>',
+        unsafe_allow_html=True)
     scores = {
         method: {
             (METRIC_LABEL_TO_KEY.get(key, key)): value
@@ -2843,12 +2938,13 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
         bar_data = [(name, max(0, metrics.get(metric, 0))) for name, metrics in scores.items()]
         bar_data.sort(key=lambda x: x[1], reverse=True)
         fig2 = go.Figure()
-        for i, (name, val) in enumerate(bar_data):
+        for name, val in bar_data:
             fig2.add_trace(go.Bar(
                 name=name, x=[name], y=[val],
-                marker_color=mcol(i),
+                marker_color=get_method_color(name),
                 text=f"{val:.4f}", textposition='outside',
                 textfont=dict(family="JetBrains Mono", size=9),
+                hovertemplate=f"<b>{method_display_name(name)}</b><br>{metric.replace('_',' ').title()}: %{{y:.4f}}<extra></extra>",
             ))
         fig2.update_layout(
             xaxis_title="Method", yaxis_title=metric.replace('_', ' ').title(),
@@ -2860,32 +2956,66 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
             yaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
             margin=dict(l=0, r=10, t=20, b=30),
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
         return
 
+    # "Most well-rounded" flash card — the shape's overall size (mean across
+    # every chosen metric) as a single, plain-language answer to "who's
+    # generally best across the board, not just on one metric".
+    method_avgs = {
+        name: float(np.mean([max(0, metrics.get(m, 0)) for m in chosen]))
+        for name, metrics in scores.items()
+    }
+    if method_avgs:
+        best_rounded = max(method_avgs, key=method_avgs.get)
+        st.markdown(
+            f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;'
+            f'padding:10px 14px;margin-bottom:14px;font-family:\'JetBrains Mono\',monospace;'
+            f'font-size:11px;color:var(--tx)">'
+            f'<b>{method_display_name(best_rounded)}</b> is the most well-rounded — highest average '
+            f'across all {len(chosen)} selected metrics ({method_avgs[best_rounded]:.2f}).</div>',
+            unsafe_allow_html=True,
+        )
+
+    render_section_header(
+        "METHOD PERFORMANCE ACROSS SELECTED METRICS",
+        "Each colored shape is one method. Each spoke is one metric, scaled 0-1 (further from "
+        "the center = better). A large, rounded shape means the method scores well everywhere; "
+        "a shape that pokes out on one spoke but pinches in on others means the method trades "
+        "off strength in one area for weakness in another.",
+    )
     fig = go.Figure()
-    for i,(name,metrics) in enumerate(scores.items()):
+    for name, metrics in scores.items():
         # KTC is already higher = better on [0, 1]; clamp negatives (worse than
         # all-water baseline) to 0 for the polar axis.
         vals = [max(0, metrics.get(m,0)) for m in chosen]
         vals.append(vals[0])
         cats = [m.replace('_',' ').title() for m in chosen]; cats.append(cats[0])
-        c = mcol(i)
+        label = method_display_name(name)
+        c = get_method_color(name)
         fig.add_trace(go.Scatterpolar(r=vals,theta=cats,fill='toself',name=name,
-            line_color=c,fillcolor=hex_to_rgba(c, 0.13)))
+            line_color=c,fillcolor=hex_to_rgba(c, 0.13),
+            hovertemplate=f"<b>{label}</b><br>%{{theta}}: %{{r:.3f}}<extra></extra>"))
     pc = st.session_state.get('_pcolors',{})
     fig.update_layout(
         polar=dict(bgcolor=pc.get('bg','#f6f8fa'),
             radialaxis=dict(visible=True,range=[0,1],gridcolor=pc.get('grid','#d0d7de'),linecolor=pc.get('grid','#d0d7de'),tickfont=dict(size=8,color=pc.get('text','#848d97'))),
             angularaxis=dict(gridcolor=pc.get('grid','#d0d7de'),linecolor=pc.get('grid','#d0d7de'),tickfont=dict(size=10,color=pc.get('text','#848d97')))),
-        showlegend=True,height=560,title="Method Performance Across Selected Metrics",
+        showlegend=True,height=560,
         paper_bgcolor=pc.get('paper','rgba(0,0,0,0)'),
         font=dict(family="JetBrains Mono,monospace",color=pc.get('text','#848d97'),size=9),
         legend=dict(bgcolor=pc.get('legend','rgba(255,255,255,.9)'),bordercolor=pc.get('grid','#d0d7de'),borderwidth=1,font=dict(size=9)),
         margin=dict(l=55,r=55,t=45,b=55))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-    st.markdown('<div class="slbl">METRIC STATISTICS</div>', unsafe_allow_html=True)
+    render_section_header(
+        "METRIC STATISTICS",
+        "For each metric, how all methods scored on it. Std Dev here is the standard deviation "
+        "across methods (not across tests) — a low Std Dev means every method scored about the "
+        "same on that metric (it doesn't separate the methods much); a high Std Dev means that "
+        "metric is where methods differ the most, so it's a good one to weigh heavily when "
+        "choosing between them.",
+    )
     rows = []
     for m in chosen:
         vals = [max(0, ms.get(m,0)) for ms in scores.values()]
@@ -2940,6 +3070,11 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
             break
     default_hm_idx = metric_opts.index(default_hm_metric) if default_hm_metric in metric_opts else 0
 
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx2);margin-bottom:8px">'
+        'Every method vs. every single test, side by side — green means it did well there, red means it struggled.</div>',
+        unsafe_allow_html=True)
+
     mc1, mc2 = st.columns([2, 4])
     with mc1:
         chosen_metric = st.selectbox("Metric:", metric_opts, index=default_hm_idx, key="hm_metric")
@@ -2955,6 +3090,128 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     pg = pc.get('grid', '#d0d7de')
     pt = pc.get('text', '#848d97')
 
+    # -- Per-method stats for the chosen metric, computed once and reused
+    # for sort order and the summary table below.
+    stats_by_method: dict[str, dict] = {}
+    for disp in method_names:
+        ik = mm.get(disp)
+        entries = per_run.get(ik, {}) if ik else {}
+        per_sample_vals: list[float] = []
+        best_level = worst_level = None
+        best_val = worst_val = None
+        for sid in all_sample_ids:
+            e = entries.get(sid)
+            if not e or chosen_metric not in e:
+                continue
+            val = e[chosen_metric]
+            lvl = key_order[sid][0]
+            per_sample_vals.append(val)
+            if best_val is None or val > best_val:
+                best_val, best_level = val, lvl
+            if worst_val is None or val < worst_val:
+                worst_val, worst_level = val, lvl
+        if not per_sample_vals:
+            continue
+        stats_by_method[disp] = {
+            'mean': float(np.mean(per_sample_vals)),
+            'std': float(np.std(per_sample_vals)),
+            'min': float(np.min(per_sample_vals)),
+            'max': float(np.max(per_sample_vals)),
+            'runs': len(per_sample_vals),
+            'best_level': best_level,
+            'worst_level': worst_level,
+        }
+
+    if not stats_by_method:
+        st.info("No data available for the selected metric.")
+        return
+
+    # Rows sorted by mean of the selected metric, best method at the top.
+    method_names = sorted(stats_by_method, key=lambda m: stats_by_method[m]['mean'], reverse=True)
+
+    # Flash cards: two facts a reader would otherwise have to hunt for
+    # across 21 cells per method — most dependable method (lowest std,
+    # i.e. score barely changes test to test) and the single hardest test
+    # overall (lowest score anywhere in the grid, across every method).
+    most_consistent = min(stats_by_method, key=lambda m: stats_by_method[m]['std'])
+    worst_cell_method, worst_cell_sid, worst_cell_val = None, None, None
+    for disp in method_names:
+        ik = mm.get(disp)
+        for sid in all_sample_ids:
+            val = per_run.get(ik, {}).get(sid, {}).get(chosen_metric)
+            if val is not None and (worst_cell_val is None or val < worst_cell_val):
+                worst_cell_val, worst_cell_method, worst_cell_sid = val, disp, sid
+    dependable_tip = ("Ranked by standard deviation of this method's scores across every test in the "
+                       "grid — the lower the standard deviation, the less that method's score moves "
+                       "from test to test, meaning its performance is predictable rather than a "
+                       "coin flip.")
+    card_html = '<div class="kpi-row">'
+    card_html += (
+        f'<div class="kpi" style="--kc:var(--c2)">'
+        f'<div class="kpi-n">{method_display_name(most_consistent)}</div>'
+        f'<div class="kpi-l" style="display:flex;align-items:center">Most Dependable'
+        f'<span class="info-tip" data-tip="{html.escape(dependable_tip)}">?</span></div>'
+        f'<div class="kpi-s">score barely changes test to test</div></div>'
+    )
+    if worst_cell_method is not None:
+        card_html += (
+            f'<div class="kpi" style="--kc:var(--c5)">'
+            f'<div class="kpi-n">{worst_cell_sid}</div>'
+            f'<div class="kpi-l">Toughest Single Test</div>'
+            f'<div class="kpi-s">{method_display_name(worst_cell_method)} scored {worst_cell_val:.2f} here, its worst</div></div>'
+        )
+    card_html += '</div>'
+    st.markdown(card_html, unsafe_allow_html=True)
+
+    # THE STATISTIC — same headline-number treatment as the Degradation tab:
+    # not just "who has the best average" (already shown above) but "who
+    # actually wins outright, cell by cell, head-to-head against whoever
+    # else was tested on that exact sample".
+    win_counts = {m: 0 for m in method_names}
+    contested_cells = 0
+    for sid in all_sample_ids:
+        cell_vals = {}
+        for disp in method_names:
+            ik = mm.get(disp)
+            v = per_run.get(ik, {}).get(sid, {}).get(chosen_metric) if ik else None
+            if v is not None:
+                cell_vals[disp] = v
+        if len(cell_vals) >= 2:
+            contested_cells += 1
+            win_counts[max(cell_vals, key=cell_vals.get)] += 1
+
+    if contested_cells and any(win_counts.values()):
+        top_winner = max(win_counts, key=win_counts.get)
+        win_pct = 100.0 * win_counts[top_winner] / contested_cells
+        fair_share_pct = 100.0 / len(method_names)
+        st.markdown(
+            f'<div style="background:var(--warn-bg);border:1px solid var(--warn-bd);'
+            f'border-radius:7px;padding:10px 14px;margin-bottom:14px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;font-weight:600;'
+            f'color:var(--amb);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">'
+            f'The Statistic</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx);line-height:1.6">'
+            f'- <b>{method_display_name(top_winner)}</b> has the single best score, head-to-head, on '
+            f'<b>{win_counts[top_winner]} of {contested_cells}</b> tests (<b>{win_pct:.0f}%</b>) — more '
+            f'than any other method.<br>'
+            f'- With {len(method_names)} methods competing, an equal split would put every method '
+            f'on top {fair_share_pct:.0f}% of the time by chance alone; '
+            f'{method_display_name(top_winner)} clears that by '
+            f'{win_pct - fair_share_pct:.0f} points, so its lead isn\'t just a slightly-higher average — '
+            f'it\'s consistently winning the direct comparison.'
+            f'</div></div>',
+            unsafe_allow_html=True)
+
+    render_section_header(
+        "SCORE GRID",
+        "One row per method, one column per test (grouped into level blocks). Cell color follows "
+        "the scale on the right: green = a strong score on that test, red = a poor one. Hover any "
+        "cell for its exact value. The Mean/Std columns on the far right summarize each row: Mean "
+        "is that method's average score across all tests shown; Std is the standard deviation of "
+        "its scores across those tests — low Std means the row's colors stay similar shade to "
+        "shade (consistent), high Std means the row swings between very green and very red cells "
+        "(inconsistent).",
+    )
     z, text, y_labels = [], [], []
     for disp in method_names:
         ik = mm.get(disp)
@@ -2972,6 +3229,18 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     # When columns exceed 12 the cell text overlaps - rely on hover tooltips instead
     show_cell_text = len(all_sample_ids) <= 12
 
+    # KTC score can go negative (worse than the water baseline); dice/iou
+    # are bounded [0, 1] and never negative, so the baseline note below is
+    # only shown when it's actually meaningful for the selected metric.
+    # Tick labels are kept short/numeric (not "0.0 (baseline)" etc.) because
+    # their rendered width is unpredictable and previously collided with
+    # the Mean/Std columns placed just to the right of the colorbar.
+    colorbar_kwargs = dict(
+        thickness=10, len=0.9, x=1.02, xpad=4,
+        tickfont=dict(family="JetBrains Mono,monospace", size=8, color="#848d97"),
+        outlinecolor="#d0d7de", outlinewidth=1,
+    )
+
     fig = go.Figure(go.Heatmap(
         z=z,
         x=[str(s) for s in all_sample_ids],
@@ -2983,12 +3252,16 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         showscale=True,
         hoverongaps=False,
         hovertemplate="<b>%{y}</b><br>Sample: %{x}<br>Value: %{text}<extra></extra>",
-        colorbar=dict(
-            thickness=10, len=0.9,
-            tickfont=dict(family="JetBrains Mono,monospace", size=8, color="#848d97"),
-            outlinecolor="#d0d7de", outlinewidth=1,
-        )
+        colorbar=colorbar_kwargs,
     ))
+
+    # White/background gaps between level groups so L1 | L2 | ... | L7 read
+    # as visually separate blocks instead of one continuous 21-column strip.
+    level_seq = [key_order[sid][0] for sid in all_sample_ids]
+    for i in range(1, len(level_seq)):
+        if level_seq[i] != level_seq[i - 1]:
+            fig.add_vline(x=i - 0.5, line_width=3, line_color=pb)
+
     fig.update_layout(
         height=max(220, len(method_names)*54 + 80),
         paper_bgcolor=pc.get('paper','rgba(0,0,0,0)'),
@@ -2998,29 +3271,58 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
                    tickfont=dict(size=8, color=pt), title='Sample'),
         yaxis=dict(gridcolor=pb, linecolor=pg,
                    tickfont=dict(size=9, color=pt), autorange='reversed'),
-        margin=dict(l=10, r=10, t=40, b=10),
+        margin=dict(l=10, r=150, t=40, b=10),
     )
-    st.plotly_chart(fig, use_container_width=True)
 
-    # Quick per-method stats row below heatmap
-    st.markdown('<div class="slbl">PER-METHOD SUMMARY</div>', unsafe_allow_html=True)
-    hm_rows = []
-    for disp in method_names:
-        ik = mm.get(disp)
-        vals = [per_run[ik][s].get(chosen_metric, float('nan'))
-                for s in all_sample_ids
-                if ik and s in per_run.get(ik,{})]
-        vals = [v for v in vals if not (v != v)]  # drop NaN
-        if vals:
-            hm_rows.append({
+    # Mean / Std reference columns to the right of the heatmap — plain text,
+    # not color-coded, so they read as reference numbers rather than one
+    # more thing to visually compare against the color scale. Placed well
+    # clear of the colorbar (fixed at x=1.02, thickness=10) so its tick
+    # labels never collide with these columns.
+    for disp in y_labels:
+        s = stats_by_method[disp]
+        fig.add_annotation(xref="paper", x=1.16, xanchor="left", yref="y", y=disp,
+                            text=f"{s['mean']:.3f}", showarrow=False,
+                            font=dict(family="JetBrains Mono,monospace", size=8, color=pt))
+        fig.add_annotation(xref="paper", x=1.28, xanchor="left", yref="y", y=disp,
+                            text=f"{s['std']:.3f}", showarrow=False,
+                            font=dict(family="JetBrains Mono,monospace", size=8, color=pt))
+    fig.add_annotation(xref="paper", x=1.16, xanchor="left", yref="paper", y=1.06,
+                        text="Mean", showarrow=False,
+                        font=dict(family="JetBrains Mono,monospace", size=8, color=pt))
+    fig.add_annotation(xref="paper", x=1.28, xanchor="left", yref="paper", y=1.06,
+                        text="Std", showarrow=False,
+                        font=dict(family="JetBrains Mono,monospace", size=8, color=pt))
+
+    if chosen_metric == 'ktc_score':
+        st.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            'color:var(--tx3);margin-bottom:4px">0.0 = water baseline (predicting nothing) '
+            '&middot; negative = worse than that</div>',
+            unsafe_allow_html=True,
+        )
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+    # -- Expandable per-method summary table ---------------------------------
+    with st.expander("Per-Method Summary Table", expanded=False):
+        st.caption(
+            "Std is the standard deviation of each method's scores across every test shown above — "
+            "a measure of consistency, not accuracy. Best_Level / Worst_Level show which difficulty "
+            "level produced that method's single best and single worst score."
+        )
+        hm_rows = [
+            {
                 'Method': disp,
-                'Mean':   round(float(np.mean(vals)),4),
-                'Std':    round(float(np.std(vals)),4),
-                'Min':    round(float(np.min(vals)),4),
-                'Max':    round(float(np.max(vals)),4),
-                'Runs':   len(vals),
-            })
-    if hm_rows:
+                'Mean': round(stats_by_method[disp]['mean'], 4),
+                'Std': round(stats_by_method[disp]['std'], 4),
+                'Min': round(stats_by_method[disp]['min'], 4),
+                'Max': round(stats_by_method[disp]['max'], 4),
+                'Best_Level': stats_by_method[disp]['best_level'],
+                'Worst_Level': stats_by_method[disp]['worst_level'],
+                'Runs': stats_by_method[disp]['runs'],
+            }
+            for disp in method_names
+        ]
         st.dataframe(pd.DataFrame(hm_rows), use_container_width=True, hide_index=True)
 
 
@@ -3180,7 +3482,7 @@ def _write_dashboard_report_charts(scores: Dict, per_run: Dict, mm: Dict, export
     stats = []
     chosen = [m for m in all_methods(scores) if m not in st.session_state.get("custom_methods", [])]
     all_levels = []
-    for i, disp_name in enumerate(chosen):
+    for disp_name in chosen:
         ik = mm.get(disp_name, disp_name)
         if ik not in per_run:
             continue
@@ -3194,7 +3496,7 @@ def _write_dashboard_report_charts(scores: Dict, per_run: Dict, mm: Dict, export
         }
         ktc = [float(np.mean(by_level[lv])) for lv in levels]
         sds = [float(np.std(by_level[lv])) for lv in levels]
-        c = mcol(i)
+        c = get_method_color(disp_name)
         mu = float(np.mean(ktc))
         upper = [v + s for v, s in zip(ktc, sds)]
         lower = [max(0, v - s) for v, s in zip(ktc, sds)]
@@ -3283,8 +3585,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
     avg_center = df.dropna(subset=["Res Center Err"]).groupby("Method")["Res Center Err"].mean().sort_values()
     if not avg_center.empty:
         fig = go.Figure()
-        colors = [PALETTE[selected_methods.index(m) % len(PALETTE)] if m in selected_methods else "#848d97"
-                  for m in avg_center.index]
+        colors = [get_method_color(m) for m in avg_center.index]
         fig.add_trace(go.Bar(
             x=avg_center.index,
             y=avg_center.values,
@@ -3310,8 +3611,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
     avg_area = df.dropna(subset=["Res Area Err"]).groupby("Method")["Res Area Err"].mean().sort_values()
     if not avg_area.empty:
         fig = go.Figure()
-        colors = [PALETTE[selected_methods.index(m) % len(PALETTE)] if m in selected_methods else "#848d97"
-                  for m in avg_area.index]
+        colors = [get_method_color(m) for m in avg_area.index]
         fig.add_trace(go.Bar(
             x=avg_area.index,
             y=avg_area.values,
@@ -3337,7 +3637,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
     scatter_df = df.dropna(subset=["Res Center Err", "KTC"])
     if not scatter_df.empty:
         fig = go.Figure()
-        for i, method in enumerate(selected_methods):
+        for method in selected_methods:
             mdf = scatter_df[scatter_df["Method"] == method]
             if mdf.empty:
                 continue
@@ -3346,7 +3646,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
                 y=mdf["Res Center Err"],
                 mode="markers",
                 name=method.replace("Reconstruction", "Recon"),
-                marker=dict(size=8, color=PALETTE[i % len(PALETTE)]),
+                marker=dict(size=8, color=get_method_color(method)),
             ))
         fig.update_layout(
             title="KTC Score vs Center Error",
@@ -3367,7 +3667,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
     deg_df = df.dropna(subset=["Res Center Err"])
     if not deg_df.empty:
         fig = go.Figure()
-        for i, method in enumerate(selected_methods):
+        for method in selected_methods:
             mdf = deg_df[deg_df["Method"] == method]
             if mdf.empty:
                 continue
@@ -3377,7 +3677,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
                 y=by_level.values,
                 mode="lines+markers",
                 name=method.replace("Reconstruction", "Recon"),
-                line=dict(color=PALETTE[i % len(PALETTE)], width=2.5),
+                line=dict(color=get_method_color(method), width=2.5),
                 marker=dict(size=7),
             ))
         fig.update_layout(
@@ -3505,8 +3805,101 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
 # =========================================================
 # VIEW 7 - HULL ANALYSIS
 # =========================================================
+@st.cache_data(show_spinner="Checking whether each reconstruction found the right shapes...")
+def _compute_qualitative_detection(dataset_root: str, entries_key: tuple) -> dict:
+    """Classify object detection per sample (detected / partially detected /
+    missed) by loading the real saved prediction + ground truth and running
+    HullAnalyzer fresh.
+
+    Computed here rather than read from scores_nested.json's
+    "_qualitative_summary" field (which experiment_runner.py can write) —
+    that field is never actually present in any of this dashboard's real
+    run directories, so relying on it would mean this feature silently
+    shows nothing. Loading the saved .mat files directly is self-contained
+    and doesn't depend on that separate, unpopulated pipeline.
+
+    entries_key: tuple of (method, mat_path, level, sample) — passed as a
+    plain tuple (not the per_run dict) so st.cache_data can hash it.
+    """
+    from src.ktc_framework.plugins.hull_plugin import HullAnalyzer
+    from src.ktc_framework.metrics.qualitative_metrics import compute_qualitative_sample, aggregate_qualitative
+    import scipy.io
+
+    sample_to_num = {"A": "1", "B": "2", "C": "3"}
+
+    def load_gt(level: int, sample: str):
+        gt_dir = Path(dataset_root) / "GroundTruths"
+        snum = sample_to_num.get(sample, sample)
+        candidates = [
+            gt_dir / f"level_{level}" / f"{snum}_true.mat",
+            gt_dir / f"level{level}" / f"{snum}_true.mat",
+        ]
+        for path in candidates:
+            if path.exists():
+                mat = scipy.io.loadmat(str(path), squeeze_me=True)
+                for key in ["truth", "Segmentation", "gt", "seg"]:
+                    if key in mat:
+                        arr = np.asarray(mat[key], dtype=np.uint8)
+                        if arr.shape == (256, 256):
+                            return arr
+        return None
+
+    analyzer = HullAnalyzer()
+    per_method_samples: dict[str, list] = {}
+    gt_cache: dict = {}
+
+    for method, mat_path, level, sample in entries_key:
+        try:
+            mat = scipy.io.loadmat(mat_path, squeeze_me=True)
+            pred = np.asarray(mat["reconstruction"], dtype=np.uint8)
+        except Exception:
+            continue
+        if pred.shape != (256, 256):
+            continue
+
+        gt_key = (level, sample)
+        if gt_key not in gt_cache:
+            gt_cache[gt_key] = load_gt(level, sample)
+        gt = gt_cache[gt_key]
+        if gt is None or not np.any(gt):
+            continue
+
+        qual = compute_qualitative_sample(pred, gt, analyzer)
+        qual['sample_id'] = f"L{level}_{sample}"
+        per_method_samples.setdefault(method, []).append(qual)
+
+    results = {}
+    for method, samples in per_method_samples.items():
+        agg = aggregate_qualitative(samples)
+        # aggregate_qualitative() only reports detected/not — add the
+        # "partially detected" nuance (some hull overlap, just below the
+        # 0.3 IoU detection threshold) and a couple of concrete missed
+        # examples to make the per-method story specific, not just a stat.
+        partial = 0
+        missed_examples: list[str] = []
+        for s in samples:
+            for cls in ('resistive', 'conductive'):
+                if not s.get(f'{cls}_in_gt') or s.get(f'{cls}_detected'):
+                    continue
+                if s.get(f'{cls}_hull_iou', 0.0) > 0:
+                    partial += 1
+                elif len(missed_examples) < 3:
+                    missed_examples.append(f"{s['sample_id']} ({cls})")
+        total_objects = agg.get('resistive_gt_count', 0) + agg.get('conductive_gt_count', 0)
+        total_detected = agg.get('resistive_detected_count', 0) + agg.get('conductive_detected_count', 0)
+        results[method] = {
+            **agg,
+            'total_objects': total_objects,
+            'total_detected': total_detected,
+            'partial_count': partial,
+            'missed_examples': missed_examples,
+        }
+    return results
+
+
 def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple = (1, 7)):
-    """Convex-hull geometric error analysis - pred vs GT hulls."""
+    """Object-detection quality: did each method find the right shapes,
+    roughly the right size, in roughly the right place?"""
 
     pc = st.session_state.get('_pcolors', {})
     sel_methods = list(scores.keys())
@@ -3514,6 +3907,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
 
     # -- Collect hull data across all methods ------------------
     hull_rows = []
+    entries_for_detection = []
     for method in sel_methods:
         pr_key = mm.get(method, method)
         entries = per_run.get(pr_key, {})
@@ -3522,168 +3916,150 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
             if lv < lvl_min or lv > lvl_max:
                 continue
             hull = entry.get("hull", {})
-            if not hull:
-                continue
-            hull_rows.append({
-                "Method": method,
-                "Level": lv,
-                "Sample": entry.get("sample", "?"),
-                "KTC": entry.get("ktc_score", entry.get("metrics", {}).get("ktc_score", 0.0)),
-                "Res Center Err": hull.get("hull_resistive_center_error"),
-                "Res Area Err": hull.get("hull_resistive_area_error"),
-                "Res Perim Err": hull.get("hull_resistive_perimeter_error"),
-                "Con Center Err": hull.get("hull_conductive_center_error"),
-                "Con Area Err": hull.get("hull_conductive_area_error"),
-                "Con Perim Err": hull.get("hull_conductive_perimeter_error"),
-                "Res Area": hull.get("hull_res_area"),
-                "Con Area": hull.get("hull_con_area"),
-                "Res Pixels": hull.get("hull_res_pixels", 0),
-                "Con Pixels": hull.get("hull_con_pixels", 0),
-            })
+            if hull:
+                hull_rows.append({
+                    "Method": method,
+                    "Level": lv,
+                    "Sample": entry.get("sample", "?"),
+                    "KTC": entry.get("ktc_score", entry.get("metrics", {}).get("ktc_score", 0.0)),
+                    "Res Center Err": hull.get("hull_resistive_center_error"),
+                    "Res Area Err": hull.get("hull_resistive_area_error"),
+                    "Res Perim Err": hull.get("hull_resistive_perimeter_error"),
+                    "Con Center Err": hull.get("hull_conductive_center_error"),
+                    "Con Area Err": hull.get("hull_conductive_area_error"),
+                    "Con Perim Err": hull.get("hull_conductive_perimeter_error"),
+                    "Res Area": hull.get("hull_res_area"),
+                    "Con Area": hull.get("hull_con_area"),
+                    "Res Pixels": hull.get("hull_res_pixels", 0),
+                    "Con Pixels": hull.get("hull_con_pixels", 0),
+                })
+            mat_path = entry.get("mat_path", "")
+            if mat_path and Path(mat_path).exists():
+                entries_for_detection.append((method, mat_path, lv, entry.get("sample", "A")))
 
     if not hull_rows:
         st.info("No hull data available. Run the benchmark or `python compute_hull_data.py` to generate hull analysis.")
         return
 
-    import pandas as _pd
-    df = _pd.DataFrame(hull_rows)
+    df = pd.DataFrame(hull_rows)
 
-    # -- KPI cards - average geometric errors per method -------
-    st.markdown("### Method Comparison - Average Geometric Errors")
-    err_cols = ["Res Center Err", "Res Area Err", "Res Perim Err"]
-    summary = df.groupby("Method")[err_cols].mean().round(1)
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx2);margin-bottom:10px">'
+        'A high KTC score means the shape overlap was good on average — but did each method actually '
+        'find the right number of objects, in roughly the right place?</div>',
+        unsafe_allow_html=True)
 
-    kpi_html = '<div class="kpi-row">'
-    for i, method in enumerate(summary.index):
-        row = summary.loc[method]
-        c = PALETTE[i % len(PALETTE)]
-        center_e = row["Res Center Err"]
-        area_e = row["Res Area Err"]
-        center_str = f"{center_e:.1f}px" if pd.notna(center_e) else "-"
-        area_str = f"{area_e:.0f}px2" if pd.notna(area_e) else "-"
-        short = method.replace("Reconstruction", "Recon").replace("Difference", "Diff").replace("Projection", "Proj")
-        kpi_html += (
-            f'<div class="kpi" style="--kc:{c}">'
-            f'<div class="kpi-n">{center_str}</div>'
-            f'<div class="kpi-l">Center Error</div>'
-            f'<div class="kpi-s">{short} | Area Err: {area_str}</div></div>'
-        )
-    kpi_html += '</div>'
-    st.markdown(kpi_html, unsafe_allow_html=True)
-
-    # -- Bar chart: Center error by method ---------------------
-    st.markdown("### Resistive Region - Center Error by Method")
+    # -- ONE geometric-error visual (was 4: center/area error bars, a KTC
+    # correlation scatter, and a by-level line chart that duplicated the
+    # Degradation tab). Center error in pixels is the single most intuitive
+    # number here — "how far off was the guess" — so it's the one kept.
+    render_section_header(
+        "HOW FAR OFF IS EACH METHOD'S GUESS, ON AVERAGE?",
+        "For every test where the method predicted a resistive object, this measures the pixel "
+        "distance between where it placed that object's center and where the object actually is "
+        "in the ground truth, then averages that distance across all tests. Shorter bars mean the "
+        "method is, on average, pointing to the right spot; taller bars mean its guesses land "
+        "further from the truth.",
+    )
     avg_center = df.dropna(subset=["Res Center Err"]).groupby("Method")["Res Center Err"].mean().sort_values()
     if not avg_center.empty:
         fig_ce = go.Figure()
-        colors = [PALETTE[list(scores.keys()).index(m) % len(PALETTE)] if m in scores else "#848d97"
-                  for m in avg_center.index]
+        colors = [get_method_color(m) for m in avg_center.index]
+        labels = [method_display_name(m) for m in avg_center.index]
         fig_ce.add_trace(go.Bar(
-            x=avg_center.index, y=avg_center.values,
+            x=labels, y=avg_center.values,
             marker_color=colors,
-            text=[f"{v:.1f}px" for v in avg_center.values],
+            text=[f"{v:.0f}px off" for v in avg_center.values],
             textposition="outside",
             textfont=dict(family="JetBrains Mono", size=11),
+            hovertemplate="<b>%{x}</b><br>Avg. center error: %{y:.1f}px<extra></extra>",
         ))
         fig_ce.update_layout(
-            yaxis_title="Center Error (px)",
-            height=340,
+            yaxis_title="Distance from true location (px, lower = better)",
+            height=340, showlegend=False,
             margin=dict(l=50, r=20, t=30, b=40),
             plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
             paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
             font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
             yaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), zeroline=False),
         )
-        st.plotly_chart(fig_ce, use_container_width=True)
+        st.plotly_chart(fig_ce, use_container_width=True, config={'displayModeBar': False})
 
-    # -- Bar chart: Area error by method -----------------------
-    st.markdown("### Resistive Region - Hull Area Error by Method")
-    avg_area = df.dropna(subset=["Res Area Err"]).groupby("Method")["Res Area Err"].mean().sort_values()
-    if not avg_area.empty:
-        fig_ae = go.Figure()
-        colors_a = [PALETTE[list(scores.keys()).index(m) % len(PALETTE)] if m in scores else "#848d97"
-                    for m in avg_area.index]
-        fig_ae.add_trace(go.Bar(
-            x=avg_area.index, y=avg_area.values,
-            marker_color=colors_a,
-            text=[f"{v:.0f}px2" for v in avg_area.values],
-            textposition="outside",
-            textfont=dict(family="JetBrains Mono", size=11),
-        ))
-        fig_ae.update_layout(
-            yaxis_title="Area Error (px2)",
-            height=340,
-            margin=dict(l=50, r=20, t=30, b=40),
-            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
-            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), zeroline=False),
-        )
-        st.plotly_chart(fig_ae, use_container_width=True)
+    # -- Qualitative detection storytelling ---------------------
+    render_section_header(
+        "DID IT FIND THE RIGHT OBJECTS?",
+        "A reconstruction 'detects' an object when its predicted shape overlaps the true object "
+        "by at least 30% (IoU >= 0.3) — a lower bar than typical image benchmarks, chosen because "
+        "these reconstructions are inherently blurry by the nature of the physics involved. A "
+        "'partial match' means some overlap was found but not enough to count as a full detection. "
+        "Methods below are ranked by detection rate first; methods tied on detection rate are then "
+        "ranked by whichever came closer on the objects it missed (more partial matches, higher "
+        "average overlap), so a tie isn't broken arbitrarily.",
+    )
+    if entries_for_detection:
+        dataset_root = st.session_state.get("cfg_dataset_root", "EvaluationData")
+        qual = _compute_qualitative_detection(dataset_root, tuple(entries_for_detection))
+        if not qual:
+            st.info("Could not load saved reconstructions/ground truth to check object detection for this run.")
+        else:
+            def _rank_key(kv):
+                q = kv[1]
+                total = q['total_objects']
+                detect_rate = (q['total_detected'] / total) if total else 0.0
+                # Full detections tie easily (e.g. two methods both at
+                # 20/29) — break the tie by who came *closer* on the misses:
+                # more partial matches first, then higher average hull IoU
+                # (a continuous closeness measure), so "which one is
+                # actually doing better" doesn't come down to dict order.
+                partial_rate = (q['partial_count'] / total) if total else 0.0
+                iou_vals = [q.get('avg_resistive_hull_iou', 0.0), q.get('avg_conductive_hull_iou', 0.0)]
+                avg_iou = float(np.mean(iou_vals)) if iou_vals else 0.0
+                return (detect_rate, partial_rate, avg_iou)
 
-    # -- Scatter: KTC score vs Center error --------------------
-    st.markdown("### KTC Score vs Center Error - Correlation")
-    scatter_df = df.dropna(subset=["Res Center Err", "KTC"])
-    if not scatter_df.empty:
-        fig_sc = go.Figure()
-        for i, method in enumerate(sel_methods):
-            mdf = scatter_df[scatter_df["Method"] == method]
-            if mdf.empty:
-                continue
-            fig_sc.add_trace(go.Scatter(
-                x=mdf["KTC"], y=mdf["Res Center Err"],
-                mode="markers",
-                name=method.replace("Reconstruction", "Recon"),
-                marker=dict(size=7, color=PALETTE[i % len(PALETTE)]),
-            ))
-        fig_sc.update_layout(
-            xaxis_title="KTC Score",
-            yaxis_title="Center Error (px)",
-            height=380,
-            margin=dict(l=50, r=20, t=30, b=40),
-            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
-            xaxis=dict(gridcolor=pc.get('grid', '#d0d7de')),
-            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de')),
-            legend=dict(bgcolor=pc.get('legend', 'rgba(255,255,255,.9)'),
-                        bordercolor=pc.get('grid', '#d0d7de'), borderwidth=1,
-                        font=dict(size=10)),
-        )
-        st.plotly_chart(fig_sc, use_container_width=True)
+            ranked = sorted(qual.items(), key=_rank_key, reverse=True)
+            for method, q in ranked:
+                total_objects = q['total_objects']
+                if total_objects == 0:
+                    continue
+                total_detected = q['total_detected']
+                partial = q['partial_count']
+                pct = 100.0 * total_detected / total_objects
+                label = method_display_name(method)
 
-    # -- Degradation: Center error across difficulty levels ----
-    st.markdown("### Hull Error Degradation by Level")
-    deg_df = df.dropna(subset=["Res Center Err"])
-    if not deg_df.empty:
-        fig_deg = go.Figure()
-        for i, method in enumerate(sel_methods):
-            mdf = deg_df[deg_df["Method"] == method]
-            if mdf.empty:
-                continue
-            by_level = mdf.groupby("Level")["Res Center Err"].mean().sort_index()
-            fig_deg.add_trace(go.Scatter(
-                x=by_level.index, y=by_level.values,
-                mode="lines+markers",
-                name=method.replace("Reconstruction", "Recon"),
-                line=dict(color=PALETTE[i % len(PALETTE)], width=2),
-                marker=dict(size=6),
-            ))
-        fig_deg.update_layout(
-            xaxis_title="Difficulty Level",
-            yaxis_title="Avg Center Error (px)",
-            height=360,
-            margin=dict(l=50, r=20, t=30, b=40),
-            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
-            xaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), dtick=1),
-            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de')),
-            legend=dict(bgcolor=pc.get('legend', 'rgba(255,255,255,.9)'),
-                        bordercolor=pc.get('grid', '#d0d7de'), borderwidth=1,
-                        font=dict(size=10)),
-        )
-        st.plotly_chart(fig_deg, use_container_width=True)
+                if total_detected == total_objects:
+                    story = f"found every object it was tested on ({total_detected}/{total_objects})."
+                elif total_detected == 0 and partial == 0:
+                    story = f"found none of the {total_objects} objects it was tested on."
+                else:
+                    story = f"found {total_detected} of {total_objects} objects"
+                    if partial:
+                        story += f", plus {partial} partial match{'es' if partial != 1 else ''}"
+                    story += "."
+
+                bar_color = "#1a7f37" if pct >= 80 else "#9a6700" if pct >= 40 else "#cf222e"
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:9px">'
+                    f'<div style="width:150px;flex-shrink:0;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:11px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{label}</div>'
+                    f'<div style="flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:4px;height:16px;overflow:hidden">'
+                    f'<div style="width:{pct:.0f}%;background:{bar_color};height:100%"></div></div>'
+                    f'<div style="width:300px;flex-shrink:0;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:10px;color:var(--tx2)">{story}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+    else:
+        st.info("Object-detection analysis needs the saved .mat reconstructions, which aren't available for this run.")
+
+    # -- Detailed table (collapsed by default) -------------------
+    with st.expander("Per-Run Hull Metrics", expanded=False):
+        display_cols = ["Method", "Level", "Sample", "KTC",
+                        "Res Center Err", "Res Area Err", "Res Perim Err",
+                        "Res Pixels", "Con Pixels"]
+        tbl = df[display_cols].copy()
+        for c in ["KTC", "Res Center Err", "Res Area Err", "Res Perim Err"]:
+            tbl[c] = tbl[c].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "-")
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
 
 
 def _render_first_run_wizard() -> None:
@@ -3829,7 +4205,9 @@ def main():
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;'
             f'color:var(--tx3);margin:-2px 0 10px;padding:0 2px;line-height:1.35">'
-            f'Run: <span style="color:var(--grn)">{latest_run.name}</span>'
+            f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;|&nbsp; '
+            f'{len(scores)} method(s) &nbsp;|&nbsp; '
+            f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions'
             f'{gt_badge}{fail_badge}</div>',
             unsafe_allow_html=True)
 
@@ -3864,17 +4242,17 @@ def main():
         method_list = " &nbsp;|&nbsp; ".join(
             f'<span style="color:var(--tx)">{m}</span>' for m in scores_f.keys())
         st.markdown(
-            f'<div class="dataset-summary-row" style="margin-bottom:12px;align-items:stretch">'
-            f'<div class="dataset-summary-card" style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">'
+            f'<div style="flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{len(scores_f)}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Methods</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--tx2);margin-top:4px;line-height:1.35">{method_list}</div>'
             f'</div>'
-            f'<div class="dataset-summary-card" style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_s}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Runs / method</div>'
             f'</div>'
-            f'<div class="dataset-summary-card" style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_t}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Total recons</div>'
             f'</div>'
