@@ -18,11 +18,14 @@ levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
 
 methods:
+  - main
+  - DampedLeastSquaresReconstruction
   - RegularizedFEMReconstruction
   - ReferenceFEM
   - LinearDifferenceReconstruction
   - BackProjection
   - GaussNewton
+  - CompetitionCNN
 
 method_plugin_paths:
   - external_methods
