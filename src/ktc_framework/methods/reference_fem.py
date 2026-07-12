@@ -15,10 +15,10 @@ import warnings
 
 import numpy as np
 
-from src.ktc_framework.adapters.method_registry import register
-from src.ktc_framework.methods.method_plugin import MethodPlugin
-from src.ktc_framework.methods import _opcache
-from src.ktc_framework.types import DataBatch
+from ktc_framework.adapters.method_registry import register
+from ktc_framework.methods.method_plugin import MethodPlugin
+from ktc_framework.methods import _opcache
+from ktc_framework.types import DataBatch
 
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -80,7 +80,7 @@ def _convert_element(element):
             if nodes.size and nodes.min() >= 1:
                 nodes = nodes - 1
             electrode = [electrode_id, nodes]
-    except Exception:
+    except (ValueError, IndexError, AttributeError):
         electrode = []
 
     return KTCMeshing.ELEMENT(topology, electrode)

@@ -21,35 +21,35 @@ from rich.console import Console  # type: ignore[import]
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn  # type: ignore[import]
 from rich.table import Table  # type: ignore[import]
 
-from src.ktc_framework.types import DataBatch
-from src.ktc_framework.adapters.method_adapter import MethodAdapter
-from src.ktc_framework.registry import (
+from ktc_framework.types import DataBatch
+from ktc_framework.adapters.method_adapter import MethodAdapter
+from ktc_framework.registry import (
     get_method as registry_get,
     list_methods as registry_list_methods,
     load_external_methods,
     PluginRegistry,
 )
-from src.ktc_framework.metrics.metric_registry import run_all_metrics
-from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-from src.ktc_framework.methods import _opcache
-from src.ktc_framework.visualization import save_panel
-from src.ktc_framework.visualization.plot_results import (
+from ktc_framework.metrics.metric_registry import run_all_metrics
+from ktc_framework.metrics.composite_score import composite_score, letter_grade
+from ktc_framework.methods import _opcache
+from ktc_framework.visualization import save_panel
+from ktc_framework.visualization.plot_results import (
     save_figures,
     plot_failure_gallery,
     plot_degradation_curve,
     plot_leaderboard,
     plot_error_overlay,
 )
-from src.ktc_framework.plugins.hull_plugin import HullAnalyzer, compute_hull_record
-from src.ktc_framework.metrics.qualitative_metrics import (
+from ktc_framework.plugins.hull_plugin import HullAnalyzer, compute_hull_record
+from ktc_framework.metrics.qualitative_metrics import (
     compute_qualitative_sample,
     aggregate_qualitative,
 )
 
 # Importing each package runs its __init__.py, which registers all plugins.
 # To register a new method or data plugin, add it to the relevant __init__.py.
-import src.ktc_framework.methods   # noqa: F401 — registers all reconstruction methods
-import src.ktc_framework.loaders   # noqa: F401 — registers all data plugins
+import ktc_framework.methods   # noqa: F401 — registers all reconstruction methods
+import ktc_framework.loaders   # noqa: F401 — registers all data plugins
 
 console = Console(safe_box=True)  # ASCII box-drawing — safe on Windows cp1252 terminals
 
@@ -180,7 +180,7 @@ class BatchRunner:
         ConfigError
             If the plugin name is not registered — fail loud, no silent fallback.
         """
-        from src.ktc_framework.runner.config_validator import ConfigError
+        from ktc_framework.runner.config_validator import ConfigError
 
         plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
         dataset_root = self.config.get("dataset_root", "")
@@ -203,10 +203,17 @@ class BatchRunner:
         Checks these locations in order:
           1. ``<dataset_root>/ref.mat``          (evaluation layout)
           2. ``<dataset_root>/TrainingData/ref.mat``  (training layout)
+          3. ``<dataset_root>/{evaluation_datasets,EvaluationData}/level{1-7}/ref.mat``
+             (real KTC evaluation archives ship one ref.mat per level,
+             nested under the eval folder, not one global file at the root —
+             KTCDataPlugin/TrainingDataPlugin already load their own correct
+             per-sample ref.mat, so this level-agnostic value is only used
+             as the fallback for data plugins — e.g. MockDataPlugin — that
+             don't supply their own)
 
         Tries multiple key names: ``Uelref``, ``Uel``, ``Uref``, ``ref``.
         Returns a flat float32 array of shape ``(N,)`` on success, or
-        ``None`` if the file is absent at both locations.
+        ``None`` if the file is absent at every location.
         """
         if not dataset_root:
             return None
@@ -215,6 +222,11 @@ class BatchRunner:
             os.path.join(dataset_root, "ref.mat"),
             os.path.join(dataset_root, "TrainingData", "ref.mat"),
         ]
+        for eval_folder in ("evaluation_datasets", "EvaluationData"):
+            for level in range(1, 8):
+                candidates.append(
+                    os.path.join(dataset_root, eval_folder, f"level{level}", "ref.mat")
+                )
         ref_keys = ["Uelref", "Uel", "Uref", "ref"]
 
         ref_path = next((p for p in candidates if os.path.exists(p)), None)

@@ -23,8 +23,8 @@ from typing import Optional
 import numpy as np
 import scipy.io
 
-from src.ktc_framework.registry import PluginRegistry
-from src.ktc_framework.types import DataBatch
+from ktc_framework.registry import PluginRegistry
+from ktc_framework.types import DataBatch
 
 try:
     import h5py as _h5py
@@ -311,7 +311,7 @@ class KTCDataPlugin:
         try:
             protocol_for_ref = protocol or self._load_protocol_from_ref(path)
             ref_voltages = protocol_for_ref.get("Uelref")
-        except Exception:
+        except (OSError, ValueError, AttributeError):
             ref_voltages = None
 
         return voltages, injection, mpat, ref_voltages
