@@ -1,0 +1,8 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      # Reconstruction results (2.7 GB) live outside the image
+      - ./outputs:/app/outputs
