@@ -30,7 +30,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: sahil2705
+          username: tannaz2001
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Extract version from git tag or commit
@@ -52,11 +52,11 @@ jobs:
           context: .
           push: true
           tags: |
-            sahil2705/ktc-dashboard:${{ steps.meta.outputs.VERSION }}
-            sahil2705/ktc-dashboard:${{ steps.meta.outputs.SHORT_SHA || 'latest' }}
-            sahil2705/ktc-dashboard:latest
-          cache-from: type=registry,ref=sahil2705/ktc-dashboard:buildcache
-          cache-to: type=registry,ref=sahil2705/ktc-dashboard:buildcache,mode=max
+            tannaz2001/ktc-dashboard:${{ steps.meta.outputs.VERSION }}
+            tannaz2001/ktc-dashboard:${{ steps.meta.outputs.SHORT_SHA || 'latest' }}
+            tannaz2001/ktc-dashboard:latest
+          cache-from: type=registry,ref=tannaz2001/ktc-dashboard:buildcache
+          cache-to: type=registry,ref=tannaz2001/ktc-dashboard:buildcache,mode=max
 
       - name: Docker image digest
         run: echo "Image pushed with digest ${{ steps.docker_build.outputs.digest }}"
@@ -64,9 +64,9 @@ jobs:
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v3
         with:
-          username: sahil2705
+          username: tannaz2001
           password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: sahil2705/ktc-dashboard
+          repository: tannaz2001/ktc-dashboard
           short-description: "KTC EIT Benchmarking Framework - Interactive Streamlit dashboard"
           description: |
             # KTC EIT Reconstruction Framework - Docker Image
@@ -77,14 +77,14 @@ jobs:
             ## Quick Start
 
             ```bash
-            docker run -p 8501:8501 sahil2705/ktc-dashboard:latest
+            docker run -p 8501:8501 tannaz2001/ktc-dashboard:latest
             ```
 
             Visit http://localhost:8501
 
             ## Documentation
 
-            - [GitHub Repository](https://github.com/Sahil-exe/ktc-eit-framework)
+            - [GitHub Repository](https://github.com/Tannaz2001/ktc-eit-framework)
             - [Deployment Guide](https://github.com/Sahil-exe/ktc-eit-framework/blob/main/docs/guides/DEPLOYMENT.md)
             - [Setup Guide](https://github.com/Sahil-exe/ktc-eit-framework/blob/main/docs/guides/RUN_GUIDE.md)
 
