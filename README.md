@@ -61,33 +61,41 @@ docker run -p 8501:8501 tannaz2001/ktc-dashboard:latest
 
 Visit **http://localhost:8501** to see the dashboard with sample training data.
 
-#### Full benchmark (2-3 hours — requires dataset)
+#### Full benchmark — every method, zero setup
+
+`EvaluationData/` (584 KB of real KTC 2023 voltage measurements) ships **in this repo**, so
+there's nothing to download. `Dockerfile.full` bundles it plus every dependency needed for all
+11 methods in `configs/ktc_all_methods.yaml` (TensorFlow for `CompetitionCNN`, CPU PyTorch for
+`ktc2023_postprocessing_master`):
 
 ```bash
-# 1. Download dataset
-bash scripts/download_ktc_dataset.sh              # macOS/Linux
-# OR
-scripts\download_ktc_dataset.bat                  # Windows
+# 1. Build the full image (installs deps + bakes in EvaluationData/, ~5-10 min)
+docker build -f Dockerfile.full -t ktc-dashboard:full .
 
-# 2. Run with dataset + full benchmark
-docker-compose up -d
+# 2. Run it
+docker run -p 8501:8501 ktc-dashboard:full
 
 # 3. Visit dashboard
 # http://localhost:8501 → click "Run Benchmark" → select ktc_all_methods.yaml
+```
 
-# 4. Watch progress
-docker-compose logs -f
+Prefer `docker-compose`? It still works and additionally persists `outputs/` on the host:
 
-# 5. Stop when done
-docker-compose down
+```bash
+docker-compose up -d
+docker-compose logs -f     # watch progress
+docker-compose down        # stop when done
 ```
 
 **What this does:**
-- Mounts `EvaluationData/` (your dataset) into container
-- Mounts `outputs/` (results persist after container stops)
-- Runs all 7 levels × 6 methods
+- Runs all 7 levels × 11 methods (2 more than before: `CompetitionCNN` and
+  `ktc2023_postprocessing_master`, both previously skipped for missing deps)
 - Visualizes results live on dashboard
 - Exports HTML report when done
+
+> Three methods (`ktc2023_abc2`, `ktc2023_e2e`, `ktc2023_pnpmasked`) are deliberately excluded —
+> they need three mutually incompatible CUDA/PyTorch versions and can't share one image. See
+> `configs/ktc_all_methods.yaml`.
 
 > For detailed Docker options and troubleshooting, see [Docker Deployment Guide](docs/guides/DEPLOYMENT.md).
 
@@ -120,7 +128,12 @@ python -m streamlit run app.py
 > `ModuleNotFoundError: No module named 'ktc_framework'`. See [Troubleshooting](#8-troubleshooting).
 
 > **Note — Step 4 needs the dataset present** under `EvaluationData/` (see [The data](#2-the-data)).
-> If it is missing, the benchmark reports `FileNotFoundError` for every sample.
+> It ships in this repo, so a normal `git clone` already has it — no separate download needed.
+
+> **Note — `CompetitionCNN` needs TensorFlow and `ktc2023_postprocessing_master` needs PyTorch.**
+> These aren't in `requirements.txt`. Install them yourself (`pip install tensorflow torch`, or
+> `pip install -r requirements-full.txt`) to include them in the run — otherwise they're skipped
+> with a warning and the rest of the benchmark continues normally.
 
 Everyday use afterwards is just steps 4–5 (and re-runs of step 4 are fast thanks to caching).
 
@@ -132,36 +145,36 @@ Everyday use afterwards is just steps 4–5 (and re-runs of step 4 are fast than
 
 **Prerequisites:**
 - Docker Desktop installed and running
-- 5-10 GB disk space
-- KTC 2023 evaluation dataset (see [The data](#2-the-data))
+- ~5 GB disk space (mostly TensorFlow + PyTorch, not data — the dataset itself is 584 KB and
+  already in the repo)
 
 **Step-by-step:**
 
-1. **Download dataset** (optional but recommended for full benchmark)
+1. **Build the full image** (dataset is bundled — nothing to download)
    ```bash
-   bash scripts/download_ktc_dataset.sh              # macOS/Linux
-   scripts\download_ktc_dataset.bat                  # Windows
+   docker build -f Dockerfile.full -t ktc-dashboard:full .
    ```
 
 2. **Start the full benchmark**
    ```bash
-   docker-compose up -d
+   docker run -p 8501:8501 ktc-dashboard:full
+   # or: docker-compose up -d   (also persists outputs/ on the host)
    ```
 
 3. **Access dashboard**
    - Open http://localhost:8501
    - Go to **"Benchmark"** tab (left sidebar)
    - Click **"Run Benchmark"**
-   - Select `configs/ktc_all_methods.yaml` (7 levels × 6 methods)
+   - Select `configs/ktc_all_methods.yaml` (7 levels × 11 methods)
 
 4. **Watch progress**
    ```bash
-   docker-compose logs -f
+   docker-compose logs -f     # if using docker-compose
    ```
 
 5. **Stop when done**
    ```bash
-   docker-compose down
+   docker-compose down        # or docker stop <container>
    ```
 
 **What gets saved:**
@@ -218,11 +231,9 @@ EvaluationData/
 - `data1/2/3.mat` correspond to samples **A / B / C**.
 - The ground truth is the same physical object at every level (higher levels only remove
   electrodes), so each level folder holds the same `*_true.mat` masks.
-- These `.mat` files are **not stored in git** (they are large). To download:
-  - **Run:** `bash scripts/download_ktc_dataset.sh` (macOS/Linux) or `scripts\download_ktc_dataset.bat` (Windows)
-  - Or follow manual instructions at [docs/guides/RUN_GUIDE.md](docs/guides/RUN_GUIDE.md#-data-setup)
-  - Challenge data: https://ktc2023.uta.fi/
-  - Alternatively, a copy ships in `external_methods/ktc2023_postprocessing-master/` that can be arranged into the layout above.
+- These `.mat` files **are stored in git** — EIT voltage measurements are small vectors, not
+  images, so the whole evaluation set is only **584 KB**. A normal `git clone` already has it;
+  no download step is required.
 
 Four real **training** samples are also included under `Codes_Matlab/TrainingData/` for quick
 experiments via `configs/training_experiment.yaml`.
@@ -352,9 +363,10 @@ More docs: [RUN_GUIDE.md](docs/guides/RUN_GUIDE.md) ·
 | Symptom | Cause | Fix |
 |---|---|---|
 | `ModuleNotFoundError: No module named 'ktc_framework'` | The package isn't installed in the active environment. | Run `pip install -e .` in the venv. |
-| Benchmark fails with `FileNotFoundError: ... data1.mat` for every sample | The evaluation dataset is missing. | Place the KTC data under `EvaluationData/` as shown in [§2](#2-the-data). |
+| Benchmark fails with `FileNotFoundError: ... data1.mat` for every sample | `EvaluationData/` is missing — shouldn't happen from a normal clone (see [§2](#2-the-data)), but can happen in a custom Docker build that excludes it via `.dockerignore`. | Confirm `EvaluationData/` exists at the repo root, or use `Dockerfile.full`, which bundles it. |
+| Sidebar **"Validate paths"** shows all `ERR` | The running process's working directory doesn't contain `EvaluationData/` — usually an old Docker image built before the dataset was committed. | Rebuild: `docker build -f Dockerfile.full -t ktc-dashboard:full .` |
 | Dashboard shows **"No data"** on the leaderboard | No scores have been generated yet. | Run `python run.py --config configs/ktc_all_methods.yaml` (or the sidebar "Run all methods"). |
-| Some methods score **0.000** or a `torch` / `tensorflow` error appears | Those deep-learning methods need extra libraries. | Install them (`pip install torch`) or ignore — the run skips them and continues. |
+| `CompetitionCNN` or `ktc2023_postprocessing_master` score **0.000** | Those methods need TensorFlow / PyTorch, which aren't in the base `requirements.txt`. | `pip install -r requirements-full.txt`, or use `Dockerfile.full` — both include them. |
 | "Run all methods" is very slow | The competition methods launch a subprocess per sample. | Select only the physics methods for a fast run; re-runs are cached. |
 
 ---
