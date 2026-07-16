@@ -53,14 +53,6 @@ measured and compared fairly.
 
 ### Option 1: Docker (Recommended)
 
-#### Quick demo (1 minute — no dataset needed)
-
-```bash
-docker run -p 8501:8501 tannaz2001/ktc-dashboard:latest
-```
-
-Visit **http://localhost:8501** to see the dashboard with sample training data.
-
 #### Full benchmark — every method, zero setup
 
 `EvaluationData/` (584 KB of real KTC 2023 voltage measurements) ships **in this repo**, so
