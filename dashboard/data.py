@@ -21,7 +21,7 @@ from ktc_framework.reporting.data_layer import (
     load_run_data,
 )
 
-HIDDEN_METHODS = {}
+HIDDEN_METHODS = set()
 BUILTIN_METHODS = {
     "BackProjection",
     "CompetitionCNN",
