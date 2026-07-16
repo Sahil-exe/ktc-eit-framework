@@ -18,16 +18,15 @@ and a downloadable **explanatory report**.
 ## Contents
 1. [Background — the problem](#1-background--the-problem)
 2. [Quick Start](#quick-start)
-3. [Running the Full Benchmark](#running-the-full-benchmark)
-4. [What you'll see](#what-youll-see)
-5. [The data](#2-the-data)
-6. [How scoring works](#3-how-scoring-works)
-7. [Reconstruction methods & example results](#4-reconstruction-methods--example-results)
-8. [The dashboard](#5-the-dashboard)
-9. [The explanatory report](#6-the-explanatory-report)
-10. [Project structure](#7-project-structure)
-11. [Troubleshooting](#8-troubleshooting)
-12. [About](#9-about)
+3. [What you'll see](#what-youll-see)
+4. [The data](#2-the-data)
+5. [How scoring works](#3-how-scoring-works)
+6. [Reconstruction methods & example results](#4-reconstruction-methods--example-results)
+7. [The dashboard](#5-the-dashboard)
+8. [The explanatory report](#6-the-explanatory-report)
+9. [Project structure](#7-project-structure)
+10. [Troubleshooting](#8-troubleshooting)
+11. [About](#9-about)
 
 ---
 
@@ -128,72 +127,6 @@ python -m streamlit run app.py
 > with a warning and the rest of the benchmark continues normally.
 
 Everyday use afterwards is just steps 4–5 (and re-runs of step 4 are fast thanks to caching).
-
----
-
-## Running the Full Benchmark
-
-### Docker (Easiest)
-
-**Prerequisites:**
-- Docker Desktop installed and running
-- ~5 GB disk space (mostly TensorFlow + PyTorch, not data — the dataset itself is 584 KB and
-  already in the repo)
-
-**Step-by-step:**
-
-1. **Build the full image** (dataset is bundled — nothing to download)
-   ```bash
-   docker build -f Dockerfile.full -t ktc-dashboard:full .
-   ```
-
-2. **Start the full benchmark**
-   ```bash
-   docker run -p 8501:8501 ktc-dashboard:full
-   # or: docker-compose up -d   (also persists outputs/ on the host)
-   ```
-
-3. **Access dashboard**
-   - Open http://localhost:8501
-   - Go to **"Benchmark"** tab (left sidebar)
-   - Click **"Run Benchmark"**
-   - Select `configs/ktc_all_methods.yaml` (7 levels × 11 methods)
-
-4. **Watch progress**
-   ```bash
-   docker-compose logs -f     # if using docker-compose
-   ```
-
-5. **Stop when done**
-   ```bash
-   docker-compose down        # or docker stop <container>
-   ```
-
-**What gets saved:**
-- `outputs/scores.json` — All metrics
-- `outputs/reconstructions/` — Per-method PNG images
-- `outputs/error_overlays/` — Failure heatmaps
-- `outputs/report.html` — Exportable report
-- All results visible in dashboard
-
-**Expected time:** 60-120 minutes (CPU-dependent)
-
-### Local Python
-
-Same steps as Option 2 in [Quick Start](#quick-start), but run this after activating venv:
-
-```bash
-python run.py --config configs/ktc_all_methods.yaml
-streamlit run app.py
-```
-
-### More options
-
-See [DEPLOYMENT.md](docs/guides/DEPLOYMENT.md) for:
-- GPU acceleration
-- Kubernetes deployment
-- Production server setup
-- Troubleshooting
 
 ---
 
