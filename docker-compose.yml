@@ -23,12 +23,20 @@ services:
       # Benchmark results only. These are multi-GB and machine-specific, so
       # they live on the host and outlive the container.
       #
-      # EvaluationData/, Codes_Matlab/ and external_methods/ are deliberately
-      # NOT mounted: the image already bundles them (~42 MB). Bind-mounting
-      # them would make Docker create empty directories on any machine that
-      # lacks the folders, masking the bundled copies and leaving the
-      # dashboard with no data.
+      # EvaluationData/ and Codes_Matlab/ are deliberately NOT mounted: the
+      # image already bundles them (~42 MB). Bind-mounting them would make
+      # Docker create empty directories on any machine that lacks the
+      # folders, masking the bundled copies and leaving the dashboard with
+      # no data.
       - ./outputs:/app/outputs
+      # Runtime-generated benchmark configs (dashboard writes here; root-owned
+      # image copy isn't writable by the non-root container user otherwise)
+      - ./configs:/app/configs
+      # Uploaded/registered method plugins (dashboard's "Add method" upload
+      # writes here — same root-owned-image-vs-non-root-user issue as
+      # configs/). Note: on a machine with no local external_methods/ folder,
+      # this mount creates an empty dir and masks the image's bundled copies.
+      - ./external_methods:/app/external_methods
 
     # Optional overrides; the image ships working defaults for all of these.
     env_file:
