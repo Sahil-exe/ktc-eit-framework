@@ -10,6 +10,7 @@ import json
 import re
 import shutil
 import sys
+import threading
 import yaml
 from datetime import datetime
 from pathlib import Path
@@ -209,6 +210,44 @@ def _apply_published_baselines(scores: Dict, per_run: Dict, mm: Dict) -> Tuple[D
     return scores, per_run, mm, filled
 
 
+def _ext_dir_fingerprint(ext_dir: Path = Path("external_methods")) -> tuple:
+    """Cheap stat-only fingerprint of external_methods/ used as cache key.
+
+    Only calls stat() — never parses AST or reads file contents.  Fast enough
+    to run on every Streamlit rerender so the cache below stays fresh without
+    requiring an explicit invalidation call.
+    """
+    if not ext_dir.exists():
+        return ()
+    parts: list = []
+    try:
+        for f in sorted(ext_dir.glob("*.py")):
+            s = f.stat()
+            parts.append((f.name, int(s.st_mtime), s.st_size))
+        for d in sorted(ext_dir.iterdir()):
+            if d.is_dir() and not d.name.startswith("_"):
+                mf = d / "method.yaml"
+                if mf.exists():
+                    s = mf.stat()
+                    parts.append((d.name, int(s.st_mtime), s.st_size))
+    except OSError:
+        pass
+    return tuple(parts)
+
+
+@st.cache_data
+def _cached_external_artifacts(fp: tuple) -> dict[str, str]:
+    """Cache-wrapped artifact scan.
+
+    ``fp`` is the mtime+size fingerprint from ``_ext_dir_fingerprint()``.
+    Streamlit hashes ``fp`` as the cache key, so the expensive AST-parsing
+    scan inside ``_discover_external_method_artifacts()`` only re-runs when a
+    file in ``external_methods/`` is actually added, removed, or modified.
+    All other renders return the cached dict instantly.
+    """
+    return _discover_external_method_artifacts()
+
+
 def _discover_external_method_artifacts(ext_dir: Path = Path("external_methods")) -> dict[str, str]:
     """Return method names currently backed by files/bundles in external_methods."""
     found: dict[str, str] = {}
@@ -248,20 +287,25 @@ def _prune_missing_external_methods(configured_methods: set[str] | None = None) 
     if K.UPLOADED_METHODS not in st.session_state:
         st.session_state[K.UPLOADED_METHODS] = {}
 
-    external_on_disk = _discover_external_method_artifacts()
+    external_on_disk = _cached_external_artifacts(_ext_dir_fingerprint())
     configured_methods = set(configured_methods or set())
     stale_methods: set[str] = set()
 
     for name, artifact in list(SS.uploaded_methods().items()):
+        # If the backing file/bundle is present on disk, the method is live — never prune it.
+        if name in external_on_disk:
+            continue
         target = Path("external_methods") / str(artifact)
-        if name not in external_on_disk and not target.exists():
+        if not target.exists():
             stale_methods.add(name)
 
     # If the app restarts after manual deletion, session_state no longer knows
     # the upload. Treat non-builtin configured names with no external artifact as
     # stale so deleted ML zip methods do not reappear from ktc_all_methods.yaml.
     for name in configured_methods:
-        if name not in BUILTIN_METHODS and name not in external_on_disk and name not in HIDDEN_METHODS:
+        if (name not in BUILTIN_METHODS
+                and name not in external_on_disk
+                and name not in HIDDEN_METHODS):
             stale_methods.add(name)
 
     for name in sorted(stale_methods):
@@ -274,6 +318,62 @@ def _prune_missing_external_methods(configured_methods: set[str] | None = None) 
             "Removed missing external method(s): " + ", ".join(sorted(stale_methods))
         )
     return stale_methods, external_on_disk
+
+
+def _force_sync_legacy_methods() -> None:
+    """Ensure every non-Docker .py/bundle in external_methods/ is in SS.uploaded_methods().
+
+    Called once per discovery cycle before the stale-artifact pruner runs.
+    Prevents legacy CLI scripts from being invisible to the UI and the benchmark
+    runner when session_state is fresh (e.g. after an app restart).
+
+    Docker shims are detected by a matching entry in registered_methods.json and
+    are skipped — their lifecycle is managed by the docker_builder module.
+    """
+    from ktc_framework.method_registry_manager import load_registry
+    docker_methods: set[str] = set(load_registry().get("methods", {}).keys())
+
+    ext_dir = Path("external_methods")
+    if not ext_dir.exists():
+        return
+
+    if K.UPLOADED_METHODS not in st.session_state:
+        st.session_state[K.UPLOADED_METHODS] = {}
+    uploaded = SS.uploaded_methods()
+
+    for file_path in sorted(ext_dir.glob("*.py")):
+        # Skip Docker shims that are tracked in the JSON registry
+        if file_path.stem in docker_methods:
+            continue
+
+        if is_cli_contract_script(file_path):
+            try:
+                from ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
+                canonical = derive_cli_method_name(file_path.stem)
+            except Exception:
+                canonical = file_path.stem
+        else:
+            candidates = plugin_method_candidates(file_path)
+            if not candidates:
+                continue
+            canonical = candidates[0]
+
+        if canonical not in uploaded:
+            uploaded[canonical] = file_path.name
+
+    for bundle_dir in sorted(ext_dir.iterdir()):
+        if not bundle_dir.is_dir() or bundle_dir.name.startswith("_"):
+            continue
+        manifest_path = bundle_dir / "method.yaml"
+        if not manifest_path.exists():
+            continue
+        try:
+            from ktc_framework.methods.manifest_loader import load_manifest
+            manifest = load_manifest(manifest_path)
+            if manifest.name not in docker_methods and manifest.name not in uploaded:
+                uploaded[manifest.name] = bundle_dir.name
+        except Exception:
+            continue
 
 
 def reset_method_upload_widget() -> None:
@@ -501,6 +601,8 @@ def discover_available_methods() -> List[str]:
 
 def _discover_available_methods_impl() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
+    _force_sync_legacy_methods()
+
     methods: List[str] = []
     removed_external = SS.removed_external()
     configured_methods: set[str] = set()
@@ -618,23 +720,24 @@ def _validate_paths_button():
     chart tab) — the validation result only ever affects this expander, nothing
     else on the page needs to react to this click."""
     if st.button("Validate paths", key="validate_cfg_btn", use_container_width=True):
-        _d = Path(SS.cfg_dataset_root())
-        _m = Path(SS.cfg_mesh_path())
-        _eval_ok = any((_d / x).is_dir() for x in ["evaluation_datasets", "EvaluationData"])
-        _gt_ok   = any((_d / x).is_dir() for x in ["GroundTruths", "groundtruths", "GroundTruth"])
-        _ref_candidates = [
-            _d / "evaluation_datasets" / "level1" / "ref.mat",
-            _d / "EvaluationData" / "level1" / "ref.mat",
-            _d / "ref.mat",
-            Path("Codes_Matlab") / "TrainingData" / "ref.mat",
-        ]
-        st.session_state[K.CFG_VALIDATION] = {
-            "root": _d.exists(),
-            "eval": _eval_ok,
-            "gt":   _gt_ok,
-            "mesh": _m.exists(),
-            "ref":  any(p.exists() for p in _ref_candidates),
-        }
+        with st.spinner("Validating paths…"):
+            _d = Path(SS.cfg_dataset_root())
+            _m = Path(SS.cfg_mesh_path())
+            _eval_ok = any((_d / x).is_dir() for x in ["evaluation_datasets", "EvaluationData"])
+            _gt_ok   = any((_d / x).is_dir() for x in ["GroundTruths", "groundtruths", "GroundTruth"])
+            _ref_candidates = [
+                _d / "evaluation_datasets" / "level1" / "ref.mat",
+                _d / "EvaluationData" / "level1" / "ref.mat",
+                _d / "ref.mat",
+                Path("Codes_Matlab") / "TrainingData" / "ref.mat",
+            ]
+            st.session_state[K.CFG_VALIDATION] = {
+                "root": _d.exists(),
+                "eval": _eval_ok,
+                "gt":   _gt_ok,
+                "mesh": _m.exists(),
+                "ref":  any(p.exists() for p in _ref_candidates),
+            }
     _v = st.session_state.get(K.CFG_VALIDATION)
     if _v:
         _checks = [
@@ -694,6 +797,28 @@ def _run_all_methods_button():
         launch_benchmark(Path("configs/ktc_all_methods.yaml"))
 
 
+@st.fragment
+def _refresh_methods_button():
+    """Isolated fragment: shows spinner while scanning, then triggers a full rerun.
+
+    Isolating the scan in a fragment means only this section re-renders during
+    the click — the six chart tabs stay untouched until the work is done.
+    The ``st.rerun()`` at the end propagates AVAILABLE_METHODS / SELECTED_METHODS
+    to the method selector and main() body via a single full page rerun.
+    """
+    if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
+        with st.spinner("Scanning methods…"):
+            st.session_state.pop(K.METHODS_CACHE, None)
+            refreshed_methods = discover_available_methods()
+            st.session_state[K.AVAILABLE_METHODS] = refreshed_methods
+            current_selection = st.session_state.get(K.SELECTED_METHODS, refreshed_methods.copy())
+            st.session_state[K.SELECTED_METHODS] = [m for m in current_selection if m in refreshed_methods]
+            if not st.session_state[K.SELECTED_METHODS]:
+                st.session_state[K.SELECTED_METHODS] = refreshed_methods.copy()
+            st.session_state[K.METHOD_REFRESH_MSG] = f"{len(refreshed_methods)} method(s) available"
+        st.rerun()
+
+
 def _render_sidebar_run_benchmark():
     """Run Benchmark section: ETA estimate, Run all / Refresh methods buttons, status."""
     st.sidebar.markdown("## Run Benchmark")
@@ -715,27 +840,8 @@ def _render_sidebar_run_benchmark():
         unsafe_allow_html=True)
     with st.sidebar:
         _run_all_methods_button()
-
-    # Runs only the methods currently ticked in the METHODS checklist below.
-    if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
-        # Popping METHODS_CACHE is what forces the fresh scan — a blanket
-        # st.cache_data.clear() isn't needed for that (_classify_ext_file is
-        # already keyed on each file's mtime+size, so unchanged files stay
-        # cached) and would cost ~9-10s re-parsing external_methods/ for
-        # nothing (see _classify_ext_file's docstring).
-        st.session_state.pop(K.METHODS_CACHE, None)  # force a fresh scan
-        refreshed_methods = discover_available_methods()
-        st.session_state[K.AVAILABLE_METHODS] = refreshed_methods
-        current_selection = st.session_state.get(K.SELECTED_METHODS, refreshed_methods.copy())
-        st.session_state[K.SELECTED_METHODS] = [m for m in current_selection if m in refreshed_methods]
-        if not st.session_state[K.SELECTED_METHODS]:
-            st.session_state[K.SELECTED_METHODS] = refreshed_methods.copy()
-        st.session_state[K.METHOD_REFRESH_MSG] = f"{len(refreshed_methods)} method(s) available"
-        # No rerun needed: AVAILABLE_METHODS/SELECTED_METHODS are read by
-        # _render_sidebar_method_selector() and main()'s filtering, both of
-        # which execute later in this same script pass (render_sidebar() ->
-        # ... -> main() body). st.rerun() here would just run the entire
-        # dashboard — all 6 chart tabs — a second time for nothing.
+    with st.sidebar:
+        _refresh_methods_button()
 
     refresh_msg = st.session_state.pop(K.METHOD_REFRESH_MSG, None)
     if refresh_msg:
@@ -1040,26 +1146,46 @@ def _render_scan_external_methods_button():
 
     # -- Registered plugins - always show with per-plugin action buttons --
     if SS.uploaded_methods():
+        from ktc_framework.method_registry_manager import load_registry as _load_reg
+        _docker_registry = _load_reg().get("methods", {})
+
         st.sidebar.markdown(
             '<div class="plugin-section-label">Registered plugins</div>',
             unsafe_allow_html=True)
         for nm, fname in list(SS.uploaded_methods().items()):
+            reg_status = _docker_registry.get(nm, {}).get("status", "active")
+            is_building = reg_status == "building"
+            is_error = reg_status == "error"
+
+            if is_building:
+                badge = ' <span style="color:#f0a500;font-size:10px">⏳ Building…</span>'
+            elif is_error:
+                badge = ' <span style="color:#e05c5c;font-size:10px">⚠ Build failed</span>'
+            else:
+                badge = ""
+
             st.sidebar.markdown(
                 f'<div class="plugin-item">'
-                f'<div class="plugin-name">{nm}</div>'
+                f'<div class="plugin-name">{nm}{badge}</div>'
                 f'<div class="plugin-file">{fname}</div>'
                 f'</div>',
                 unsafe_allow_html=True)
             ca, cb, cc = st.sidebar.columns([1, 1, 1], gap="small")
             if ca.button("Run", key=f"run_up_{nm}", use_container_width=True,
-                         help=f"Benchmark {nm} now and add it to ktc_all_methods.yaml "
-                              "for future full runs"):
+                         disabled=is_building,
+                         help=(
+                             "Docker image is still building — please wait."
+                             if is_building else
+                             f"Benchmark {nm} now and add it to ktc_all_methods.yaml "
+                             "for future full runs"
+                         )):
                 append_method_to_config(nm)
                 cfg_path = write_runtime_config(nm)
                 launch_benchmark(cfg_path)
             is_published = nm in _load_published_manifest()
             if is_published:
                 if cb.button("Unpublish", key=f"unpub_{nm}", use_container_width=True,
+                             disabled=is_building,
                              help="Remove this method's published baseline — teammates "
                                   "won't see its scores until they run it themselves"):
                     unpublish_method(nm)
@@ -1067,8 +1193,13 @@ def _render_scan_external_methods_button():
                     st.rerun()
             else:
                 if cb.button("Publish", key=f"pub_{nm}", use_container_width=True,
-                             help="Snapshot this method's current scores into a git-tracked "
-                                  "baseline so teammates see them right after pulling"):
+                             disabled=is_building,
+                             help=(
+                                 "Docker image is still building — please wait."
+                                 if is_building else
+                                 "Snapshot this method's current scores into a git-tracked "
+                                 "baseline so teammates see them right after pulling"
+                             )):
                     ok, msg = publish_method(nm)
                     st.session_state[K.METHOD_REFRESH_MSG] = msg
                     if ok:
@@ -1439,14 +1570,221 @@ def _render_upload_new_plugin_widget():
                 _handle_py_plugin_upload(up, dest_dir, before, sig)
 
 
+def _render_docker_bundle_upload_widget(container=None):
+    """Upload a Method Bundle zip (algorithm.py + requirements.txt + ktc_config.yml).
+
+    Triggers a docker build in a blocking spinner block so the user sees live
+    status. Errors from pip/layer failures are surfaced verbatim via st.error.
+
+    Args:
+        container: Streamlit container to render into (tab, sidebar, etc.).
+                   Defaults to ``st.sidebar``.
+    """
+    c = container if container is not None else st.sidebar
+    c.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:var(--tx3);line-height:1.55;margin-bottom:6px">'
+        '<b style="color:var(--tx2)">.zip</b> containing '
+        '<code>algorithm.py</code>, <code>requirements.txt</code>, '
+        'and optionally <code>ktc_config.yml</code> '
+        '(name, base_image). Builds an isolated Docker image.</div>',
+        unsafe_allow_html=True)
+
+    upload_key = f"docker_bundle_upload_{st.session_state.get('_docker_bundle_nonce', 0)}"
+    up = c.file_uploader(
+        "Upload Method Bundle (.zip)",
+        type=["zip"],
+        key=upload_key,
+        label_visibility="collapsed",
+    )
+
+    if up is not None:
+        sig = f"{up.name}:{up.size}"
+        if st.session_state.get("_last_docker_bundle_upload") != sig:
+            import tempfile as _tmp
+            from pathlib import Path as _Path
+            from ktc_framework.adapters.docker_builder import (
+                parse_bundle_name, build_method_async, DockerBuildError,
+            )
+            from ktc_framework.method_registry_manager import add_method as _add_method
+
+            tmp_zip = _Path(_tmp.gettempdir()) / up.name
+            tmp_zip.write_bytes(up.getbuffer())
+
+            # Quick synchronous pre-validation — extracts zip, checks required
+            # files, parses ktc_config.yml. No Docker involvement. Fast.
+            try:
+                name, base_image = parse_bundle_name(str(tmp_zip))
+            except Exception as exc:
+                st.session_state["_last_docker_bundle_upload"] = sig
+                st.session_state["_docker_bundle_nonce"] = (
+                    st.session_state.get("_docker_bundle_nonce", 0) + 1
+                )
+                tmp_zip.unlink(missing_ok=True)
+                c.error(
+                    f"Invalid bundle: {exc}\n\n"
+                    "Required zip layout:\n"
+                    "  my_method.zip\n"
+                    "  ├── algorithm.py     ← required\n"
+                    "  ├── requirements.txt ← required\n"
+                    "  └── ktc_config.yml   ← optional\n"
+                )
+                return
+
+            image_tag = f"ktc-{name.lower()}:latest"
+
+            # Pre-register as "building" so the UI can show a status badge
+            # immediately. The background thread updates this to "active" or
+            # "error" when docker build completes.
+            _add_method(name, image_tag, base_image=base_image, status="building")
+
+            # Start background thread. tmp_zip must NOT be deleted here —
+            # build_method_async cleans it up after the build attempt.
+            threading.Thread(
+                target=build_method_async,
+                args=(tmp_zip, name, image_tag),
+                daemon=True,
+            ).start()
+
+            st.session_state["_last_docker_bundle_upload"] = sig
+            st.session_state["_docker_bundle_nonce"] = (
+                st.session_state.get("_docker_bundle_nonce", 0) + 1
+            )
+            methods = SS.uploaded_methods()
+            # Store the shim filename, not the image tag.  _prune_missing_external_methods
+            # does Path("external_methods") / artifact to check existence on disk —
+            # an image tag ("ktc-foo:latest") would never resolve to a real path.
+            methods[name] = f"{name}.py"
+            removed = SS.removed_external()
+            removed.discard(name)
+            st.session_state[K.REMOVED_EXTERNAL] = sorted(list(removed))
+            current_available = SS.available_methods()
+            if name not in current_available:
+                current_available.append(name)
+                st.session_state[K.AVAILABLE_METHODS] = current_available
+            st.session_state[K.METHOD_REFRESH_MSG] = (
+                f"⏳ Building '{name}' in the background — "
+                "dashboard stays live. Refresh to check status."
+            )
+            st.rerun()
+
+
+def _render_link_existing_image_widget(container=None):
+    """Link an existing Docker image by name/tag without building.
+
+    Args:
+        container: Streamlit container to render into. Defaults to ``st.sidebar``.
+    """
+    c = container if container is not None else st.sidebar
+    c.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:var(--tx3);line-height:1.55;margin-bottom:6px">'
+        'Register a <b style="color:var(--tx2)">pre-built image</b> from '
+        'Docker Hub, GHCR, or a local tag. The image must already be '
+        'present locally (<code>docker pull …</code> if needed).</div>',
+        unsafe_allow_html=True)
+
+    method_name_input = c.text_input(
+        "Method Name",
+        key="link_image_method_name",
+        placeholder="e.g. MyAlgorithm",
+    )
+    image_tag_input = c.text_input(
+        "Docker Image Tag / URL",
+        key="link_image_tag",
+        placeholder="e.g. docker.io/user/repo:latest",
+    )
+    author_input = c.text_input(
+        "Author",
+        key="link_image_author",
+        placeholder="e.g. your_username",
+    )
+
+    if c.button("Link Image", key="link_image_btn", use_container_width=True):
+        name = method_name_input.strip()
+        image_tag = image_tag_input.strip()
+        author = author_input.strip()
+
+        if not name:
+            c.error("Method Name is required.")
+        elif not name.isidentifier():
+            c.error(
+                f"'{name}' is not a valid Python identifier. "
+                "Use only letters, digits, and underscores; must not start with a digit."
+            )
+        elif not image_tag:
+            c.error("Docker Image Tag / URL is required.")
+        else:
+            try:
+                from ktc_framework.adapters.docker_builder import link_external_image
+                link_external_image(name, image_tag, author=author)
+
+                methods = SS.uploaded_methods()
+                # Store shim filename (not image tag) — pruner resolves against disk.
+                methods[name] = f"{name}.py"
+                removed = SS.removed_external()
+                removed.discard(name)
+                st.session_state[K.REMOVED_EXTERNAL] = sorted(list(removed))
+                current_available = SS.available_methods()
+                if name not in current_available:
+                    current_available.append(name)
+                    st.session_state[K.AVAILABLE_METHODS] = current_available
+                st.session_state[K.METHOD_REFRESH_MSG] = (
+                    f"Linked Docker image: {name} ({image_tag})"
+                )
+                append_method_to_config(name)
+                st.rerun()
+
+            except Exception as exc:
+                c.error(f"Failed to link image: {exc}")
+
+
+def _render_delete_docker_method_widget():
+    """Manage Methods: selectbox + Delete button for uploaded Docker methods."""
+    methods = SS.uploaded_methods()
+    if not methods:
+        return
+
+    st.sidebar.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:var(--tx3);margin:8px 0 5px;text-transform:uppercase;'
+        'letter-spacing:.1em">Manage Methods</div>',
+        unsafe_allow_html=True)
+
+    method_names = sorted(methods.keys())
+    selected = st.sidebar.selectbox(
+        "Select method",
+        method_names,
+        key="delete_method_select",
+        label_visibility="collapsed",
+    )
+
+    if st.sidebar.button("Delete Method", key="delete_method_btn", use_container_width=True):
+        from ktc_framework.adapters.docker_builder import remove_external_method
+        remove_external_method(selected)
+        del SS.uploaded_methods()[selected]
+        removed = SS.removed_external()
+        removed.add(selected)
+        st.session_state[K.REMOVED_EXTERNAL] = sorted(list(removed))
+        st.rerun()
+
+
 def _render_sidebar_add_method():
-    """Add Method: Scan external_methods/ button, then Upload new plugin (.py/.zip)."""
+    """Add Method: Scan button, legacy plugin upload, then Docker tabs (Bundle / Link)."""
     st.sidebar.markdown("## Add Method")
     if K.UPLOADED_METHODS not in st.session_state:
         st.session_state[K.UPLOADED_METHODS] = {}
 
     _render_scan_external_methods_button()
     _render_upload_new_plugin_widget()
+
+    tab1, tab2 = st.sidebar.tabs(["Upload Bundle (.zip)", "Link Existing Image"])
+    with tab1:
+        _render_docker_bundle_upload_widget(container=tab1)
+    with tab2:
+        _render_link_existing_image_widget(container=tab2)
+
+    _render_delete_docker_method_widget()
 
 
 def _render_sidebar_run_history():
