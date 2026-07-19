@@ -41,7 +41,7 @@ from dashboard.data import (
     HIDDEN_METHODS, BUILTIN_METHODS,
     METRIC_SPECS, METRIC_LABEL_TO_KEY, METRIC_KEY_TO_LABEL, ALL_METRICS_SIDEBAR,
     true_first_run_runtime_ms, load_data, apply_dashboard_filters,
-    load_images_for_sample, load_comparison_panel,
+    load_images_for_sample, load_comparison_panel, get_all_valid_runs,
 )
 from dashboard.scoring import (
     METHOD_COLORS,
@@ -58,7 +58,7 @@ from dashboard.benchmark import (
     _get_cfg_settings, write_runtime_config, write_selected_config,
     _run_label, write_rerun_failed_config,
     _extract_config_error, _read_run_failures, _render_failures_panel,
-    render_benchmark_status, render_bench_progress,
+    render_benchmark_status, render_bench_progress, render_bench_log_sidebar,
     append_method_to_config, remove_method_from_config, remove_external_method_state,
 )
 from ktc_framework.reporting.data_layer import (
@@ -365,6 +365,30 @@ def plugin_method_candidates(plugin_path: Path) -> List[str]:
     return names
 
 
+@st.cache_data(show_spinner=False)
+def _classify_ext_file(path_str: str, mtime: float, size: int) -> Tuple[List[str], bool]:
+    """Cached (candidates, is_cli) classification for one external_methods/ file.
+
+    Keyed on path+mtime+size so an edited/replaced file is reclassified
+    automatically. Without this, the Method Library scan re-parses every
+    file in external_methods/ on every single rerun (any sidebar click) —
+    for a large non-plugin file like KTCcircmesh.py (~1.1MB of mesh data,
+    no method classes) that's ~9-10s of AST parsing wasted per interaction.
+    """
+    p = Path(path_str)
+    try:
+        candidates = plugin_method_candidates(p)
+    except Exception:
+        candidates = []
+    is_cli = False
+    if not candidates:
+        try:
+            is_cli = is_cli_contract_script(p)
+        except Exception:
+            is_cli = False
+    return candidates, is_cli
+
+
 def is_cli_contract_script(plugin_path: Path) -> bool:
     """True if *plugin_path* is a raw KTC CLI-contract script (main() +
     argparse + if __name__ == '__main__'), as opposed to an in-process
@@ -588,6 +612,48 @@ def _render_sidebar_brand():
     """, unsafe_allow_html=True)
 
 
+@st.fragment
+def _validate_paths_button():
+    """Isolated so clicking it doesn't force a full-page rerun (and re-render every
+    chart tab) — the validation result only ever affects this expander, nothing
+    else on the page needs to react to this click."""
+    if st.button("Validate paths", key="validate_cfg_btn", use_container_width=True):
+        _d = Path(SS.cfg_dataset_root())
+        _m = Path(SS.cfg_mesh_path())
+        _eval_ok = any((_d / x).is_dir() for x in ["evaluation_datasets", "EvaluationData"])
+        _gt_ok   = any((_d / x).is_dir() for x in ["GroundTruths", "groundtruths", "GroundTruth"])
+        _ref_candidates = [
+            _d / "evaluation_datasets" / "level1" / "ref.mat",
+            _d / "EvaluationData" / "level1" / "ref.mat",
+            _d / "ref.mat",
+            Path("Codes_Matlab") / "TrainingData" / "ref.mat",
+        ]
+        st.session_state[K.CFG_VALIDATION] = {
+            "root": _d.exists(),
+            "eval": _eval_ok,
+            "gt":   _gt_ok,
+            "mesh": _m.exists(),
+            "ref":  any(p.exists() for p in _ref_candidates),
+        }
+    _v = st.session_state.get(K.CFG_VALIDATION)
+    if _v:
+        _checks = [
+            ("dataset_root exists", _v["root"]),
+            ("eval data folder",    _v["eval"]),
+            ("GroundTruths folder", _v["gt"]),
+            ("mesh_path exists",    _v["mesh"]),
+            ("ref.mat found",       _v["ref"]),
+        ]
+        for _lbl, _ok in _checks:
+            _c = "#1a7f37" if _ok else "#cf222e"
+            _i = "OK " if _ok else "ERR"
+            st.markdown(
+                f'<div style="font-family:\'JetBrains Mono\',monospace;'
+                f'font-size:10px;color:{_c};margin:2px 0">{_i} {_lbl}</div>',
+                unsafe_allow_html=True,
+            )
+
+
 def _render_sidebar_dataset_settings():
     """Dataset Settings expander (B1 / B2 / B3): root/mesh path inputs + Validate paths."""
     with st.sidebar.expander("Dataset Settings", expanded=False):
@@ -609,41 +675,23 @@ def _render_sidebar_dataset_settings():
             placeholder="Codes_Matlab/Mesh_sparse.mat",
             help="Path to Mesh_sparse.mat.",
         )
-        if st.button("Validate paths", key="validate_cfg_btn", use_container_width=True):
-            _d = Path(SS.cfg_dataset_root())
-            _m = Path(SS.cfg_mesh_path())
-            _eval_ok = any((_d / x).is_dir() for x in ["evaluation_datasets", "EvaluationData"])
-            _gt_ok   = any((_d / x).is_dir() for x in ["GroundTruths", "groundtruths", "GroundTruth"])
-            _ref_candidates = [
-                _d / "evaluation_datasets" / "level1" / "ref.mat",
-                _d / "EvaluationData" / "level1" / "ref.mat",
-                _d / "ref.mat",
-                Path("Codes_Matlab") / "TrainingData" / "ref.mat",
-            ]
-            st.session_state[K.CFG_VALIDATION] = {
-                "root": _d.exists(),
-                "eval": _eval_ok,
-                "gt":   _gt_ok,
-                "mesh": _m.exists(),
-                "ref":  any(p.exists() for p in _ref_candidates),
-            }
-        _v = st.session_state.get(K.CFG_VALIDATION)
-        if _v:
-            _checks = [
-                ("dataset_root exists", _v["root"]),
-                ("eval data folder",    _v["eval"]),
-                ("GroundTruths folder", _v["gt"]),
-                ("mesh_path exists",    _v["mesh"]),
-                ("ref.mat found",       _v["ref"]),
-            ]
-            for _lbl, _ok in _checks:
-                _c = "#1a7f37" if _ok else "#cf222e"
-                _i = "OK " if _ok else "ERR"
-                st.markdown(
-                    f'<div style="font-family:\'JetBrains Mono\',monospace;'
-                    f'font-size:10px;color:{_c};margin:2px 0">{_i} {_lbl}</div>',
-                    unsafe_allow_html=True,
-                )
+        _validate_paths_button()
+
+
+@st.fragment
+def _run_all_methods_button():
+    """Isolated so clicking it doesn't force a full-page rerun (and re-render every
+    chart tab). The progress banner is its own polling fragment and picks this up
+    independently; nothing else on the page needs to react to this click.
+
+    Must be called from within a `with st.sidebar:` block and use plain
+    st.button (not st.sidebar.button) here — a fragment can only write
+    widgets into the same container it was invoked from; mixing the two
+    raises StreamlitFragmentWidgetsNotAllowedOutsideError the moment this
+    fragment reruns on its own (i.e. on the click itself).
+    """
+    if st.button("Run all methods", use_container_width=True, key="run_full_btn"):
+        launch_benchmark(Path("configs/ktc_all_methods.yaml"))
 
 
 def _render_sidebar_run_benchmark():
@@ -665,13 +713,16 @@ def _render_sidebar_run_benchmark():
         f'<div>{_n_str} methods | est. <b style="color:#9a6700">{_eta}</b></div>'
         f'<div>Reloads automatically when done.</div></div>',
         unsafe_allow_html=True)
-    if st.sidebar.button("Run all methods", use_container_width=True, key="run_full_btn"):
-        if launch_benchmark(Path("configs/ktc_all_methods.yaml")):
-            st.rerun()
+    with st.sidebar:
+        _run_all_methods_button()
 
     # Runs only the methods currently ticked in the METHODS checklist below.
     if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
-        st.cache_data.clear()
+        # Popping METHODS_CACHE is what forces the fresh scan — a blanket
+        # st.cache_data.clear() isn't needed for that (_classify_ext_file is
+        # already keyed on each file's mtime+size, so unchanged files stay
+        # cached) and would cost ~9-10s re-parsing external_methods/ for
+        # nothing (see _classify_ext_file's docstring).
         st.session_state.pop(K.METHODS_CACHE, None)  # force a fresh scan
         refreshed_methods = discover_available_methods()
         st.session_state[K.AVAILABLE_METHODS] = refreshed_methods
@@ -680,7 +731,11 @@ def _render_sidebar_run_benchmark():
         if not st.session_state[K.SELECTED_METHODS]:
             st.session_state[K.SELECTED_METHODS] = refreshed_methods.copy()
         st.session_state[K.METHOD_REFRESH_MSG] = f"{len(refreshed_methods)} method(s) available"
-        st.rerun()
+        # No rerun needed: AVAILABLE_METHODS/SELECTED_METHODS are read by
+        # _render_sidebar_method_selector() and main()'s filtering, both of
+        # which execute later in this same script pass (render_sidebar() ->
+        # ... -> main() body). st.rerun() here would just run the entire
+        # dashboard — all 6 chart tabs — a second time for nothing.
 
     refresh_msg = st.session_state.pop(K.METHOD_REFRESH_MSG, None)
     if refresh_msg:
@@ -705,7 +760,12 @@ def _render_sidebar_reset_filters():
             st.session_state[f'samp_{s}'] = True
         for m in SS.available_methods():
             st.session_state[f'method_{m}'] = True
-        st.rerun()
+        # No rerun needed: every widget key set above (metric_*, samp_*,
+        # method_*) belongs to a checkbox rendered later in this same script
+        # pass (_render_sidebar_metrics_selector / _method_selector /
+        # _sample_filter all run after this function), and main()'s chart
+        # filtering runs after render_sidebar() returns in this same pass
+        # too. st.rerun() here would just run the whole dashboard twice.
 
 
 def _render_sidebar_metrics_selector():
@@ -731,6 +791,17 @@ def _render_sidebar_metrics_selector():
         else:
             if m in st.session_state[K.SELECTED_METRICS]:
                 st.session_state[K.SELECTED_METRICS].remove(m)
+
+
+@st.fragment
+def _run_single_method_button(m: str, display_name: str):
+    """Isolated so clicking Run on one method doesn't force a full-page rerun (and
+    re-render every chart tab). Must stay separate from the row's checkbox, which
+    needs a full rerun to update the leaderboard filter elsewhere on the page."""
+    if st.button("Run", key=f"mrun_{m}", use_container_width=True,
+                 help=f"Benchmark {display_name} now"):
+        _cfg = write_runtime_config(m)
+        launch_benchmark(_cfg)
 
 
 def _render_sidebar_method_selector():
@@ -772,11 +843,7 @@ def _render_sidebar_method_selector():
             elif not new_val and m in st.session_state[K.SELECTED_METHODS]:
                 st.session_state[K.SELECTED_METHODS].remove(m)
             with _run_col:
-                if st.button("Run", key=f"mrun_{m}", use_container_width=True,
-                             help=f"Benchmark {display_name} now"):
-                    _cfg = write_runtime_config(m)
-                    if launch_benchmark(_cfg):
-                        st.rerun()
+                _run_single_method_button(m, display_name)
             with _del_col:
                 if is_external:
                     if st.button("✕", key=f"mdel_{m}", help="Remove plugin"):
@@ -794,7 +861,11 @@ def _render_sidebar_method_selector():
                         remove_method_from_config(m)
                         remove_external_method_state(m)
                         reset_method_upload_widget()
-                        st.cache_data.clear()
+                        # No cache clear needed: the file is gone from disk, so
+                        # _classify_ext_file (keyed on path+mtime+size) simply
+                        # won't be asked about it again — a blanket
+                        # st.cache_data.clear() would just cost ~9-10s
+                        # re-parsing the rest of external_methods/ for nothing.
                         st.session_state[K.METHOD_REFRESH_MSG] = f"Removed: {m}"
                         st.rerun()
     else:
@@ -985,8 +1056,7 @@ def _render_scan_external_methods_button():
                               "for future full runs"):
                 append_method_to_config(nm)
                 cfg_path = write_runtime_config(nm)
-                if launch_benchmark(cfg_path):
-                    st.rerun()
+                launch_benchmark(cfg_path)
             is_published = nm in _load_published_manifest()
             if is_published:
                 if cb.button("Unpublish", key=f"unpub_{nm}", use_container_width=True,
@@ -1021,7 +1091,8 @@ def _render_scan_external_methods_button():
                 remove_method_from_config(nm)
                 remove_external_method_state(nm)
                 reset_method_upload_widget()
-                st.cache_data.clear()
+                # See the equivalent removal above: no cache clear needed, the
+                # file is gone from disk.
                 st.session_state[K.METHOD_REFRESH_MSG] = f"Removed: {nm}"
                 st.rerun()
     else:
@@ -1382,20 +1453,6 @@ def _render_sidebar_run_history():
     """Run History: load/delete past runs, re-run failed samples, preview scores."""
     st.sidebar.markdown("## Run History")
     runs_root = Path("outputs")
-    def _dashboard_run_has_data(run_dir: Path) -> bool:
-        scores_path = run_dir / "scores.json"
-        per_run_path = run_dir / "per_run_metrics.json"
-        if not scores_path.exists() or not per_run_path.exists():
-            return False
-        try:
-            with scores_path.open(encoding="utf-8") as f:
-                scores_data = json.load(f)
-            with per_run_path.open(encoding="utf-8") as f:
-                per_run_data = json.load(f)
-            total = sum(len(v) for v in per_run_data.values()) if isinstance(per_run_data, dict) else 0
-            return bool(scores_data) and bool(per_run_data) and total > 0
-        except (ValueError, OSError):
-            return False
 
     # Load only active run on startup for performance - lazy load others on demand
     current_run_obj = find_latest_run()
@@ -1404,21 +1461,13 @@ def _render_sidebar_run_history():
     # Always show active run first
     run_dirs = [current_run_obj] if current_run_obj and current_run_obj.exists() else []
 
-    # Lazy load other runs only when user opens dropdown
-    @st.cache_data(ttl=600)
-    def get_all_valid_runs():
-        return [
-            d for d in sorted(runs_root.glob("run_*"), reverse=True)
-            if _dashboard_run_has_data(d)
-        ] if runs_root.exists() else []
-
     if run_dirs or current_run:
         st.sidebar.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--grn);margin:4px 0">'
             f'Active: {current_run}</div>', unsafe_allow_html=True)
 
         # Lazy-load full list only when needed
-        all_valid_runs = get_all_valid_runs()
+        all_valid_runs = get_all_valid_runs(str(runs_root))
         run_names = [d.name for d in all_valid_runs] if all_valid_runs else [current_run]
         default_idx = run_names.index(current_run) if current_run and current_run in run_names else 0
         # C1: rich labels with status icon + failure count
@@ -1431,7 +1480,11 @@ def _render_sidebar_run_history():
             selected_path = runs_root / chosen_run
             (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
             st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
-            st.cache_data.clear()
+            # No cache clear needed: load_data() is keyed on run_dir, so switching
+            # to a different (unchanged-on-disk) run is either a cache hit or a
+            # fresh key — a blanket st.cache_data.clear() would also wipe
+            # unrelated caches like _classify_ext_file (~9-10s to rebuild, see
+            # its docstring) for no benefit here.
             st.rerun()
 
         # C2: delete run with confirmation
@@ -1449,7 +1502,13 @@ def _render_sidebar_run_history():
             if st.sidebar.button("Yes, delete run", key="confirm_del_yes", use_container_width=True):
                 shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
                 st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
-                st.cache_data.clear()
+                # Targeted clear: only caches whose contents actually depend on
+                # the run list / that specific run's data. Avoids nuking
+                # unrelated caches (e.g. _classify_ext_file) via a blanket
+                # st.cache_data.clear().
+                get_all_valid_runs.clear()
+                load_data.clear()
+                true_first_run_runtime_ms.clear()
                 st.rerun()
             if st.sidebar.button("Cancel", key="confirm_del_no", use_container_width=True):
                 st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
@@ -1466,8 +1525,7 @@ def _render_sidebar_run_history():
             if st.sidebar.button("Re-run failed only", key="rerun_failed_btn",
                                  use_container_width=True):
                 _cfg = write_rerun_failed_config(_active_failures)
-                if launch_benchmark(_cfg):
-                    st.rerun()
+                launch_benchmark(_cfg)
 
         # Show scores for the selected run (not just active) as preview
         preview_scores_path = runs_root / chosen_run / "scores.json"
@@ -1535,8 +1593,11 @@ def _render_method_library_contents(container) -> None:
             return "auto-imported"
         if not fname.endswith(".py"):
             return "bundle (method.yaml)"
+        fpath = Path("external_methods") / fname
         try:
-            if is_cli_contract_script(Path("external_methods") / fname):
+            _stat = fpath.stat()
+            _, is_cli = _classify_ext_file(str(fpath), _stat.st_mtime, _stat.st_size)
+            if is_cli:
                 return "CLI script"
         except Exception:
             pass
@@ -1566,15 +1627,16 @@ def _render_method_library_contents(container) -> None:
                 continue
             if p.is_file() and p.suffix == ".py":
                 try:
-                    candidates = plugin_method_candidates(p)
+                    _stat = p.stat()
+                    candidates, is_cli = _classify_ext_file(str(p), _stat.st_mtime, _stat.st_size)
                 except Exception:
-                    candidates = []
+                    candidates, is_cli = [], False
                 if candidates:
                     if not any(c in registered for c in candidates):
                         unregistered.append((p.name, "not imported — click Import from external_methods/"))
                     continue
                 try:
-                    if is_cli_contract_script(p):
+                    if is_cli:
                         from ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
                         if derive_cli_method_name(p.stem) not in registered:
                             unregistered.append((p.name, "not imported — click Import from external_methods/"))
@@ -1608,6 +1670,7 @@ def render_sidebar():
     _render_sidebar_brand()
     _render_sidebar_dataset_settings()
     _render_sidebar_run_benchmark()
+    render_bench_log_sidebar()
 
     st.sidebar.markdown("---")
     _render_sidebar_reset_filters()
@@ -3450,6 +3513,57 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
 # =========================================================
 # VIEW 7 - HULL ANALYSIS
 # =========================================================
+@st.cache_data(show_spinner=False)
+def _qualitative_sample_result(dataset_root: str, mat_path: str, level: int, sample: str):
+    """Object-detection result for ONE saved reconstruction, cached independently
+    of which other entries are currently selected.
+
+    Split out from _compute_qualitative_detection so that changing the sidebar's
+    method/level/sample filters — which changes that function's entries_key and
+    therefore its cache key — doesn't force every sample to be recomputed from
+    scratch. Each sample here is keyed on its own mat_path, so a filter change
+    only computes whatever's genuinely new, and everything already seen (under
+    any other filter combination) stays a cache hit.
+    """
+    from ktc_framework.plugins.hull_plugin import HullAnalyzer
+    from ktc_framework.metrics.qualitative_metrics import compute_qualitative_sample
+    import scipy.io
+
+    sample_to_num = {"A": "1", "B": "2", "C": "3"}
+    gt_dir = Path(dataset_root) / "GroundTruths"
+    snum = sample_to_num.get(sample, sample)
+    candidates = [
+        gt_dir / f"level_{level}" / f"{snum}_true.mat",
+        gt_dir / f"level{level}" / f"{snum}_true.mat",
+    ]
+    gt = None
+    for path in candidates:
+        if path.exists():
+            mat = scipy.io.loadmat(str(path), squeeze_me=True)
+            for key in ["truth", "Segmentation", "gt", "seg"]:
+                if key in mat:
+                    arr = np.asarray(mat[key], dtype=np.uint8)
+                    if arr.shape == (256, 256):
+                        gt = arr
+                        break
+        if gt is not None:
+            break
+    if gt is None or not np.any(gt):
+        return None
+
+    try:
+        mat = scipy.io.loadmat(mat_path, squeeze_me=True)
+        pred = np.asarray(mat["reconstruction"], dtype=np.uint8)
+    except (OSError, ValueError, KeyError):
+        return None
+    if pred.shape != (256, 256):
+        return None
+
+    qual = compute_qualitative_sample(pred, gt, HullAnalyzer())
+    qual['sample_id'] = f"L{level}_{sample}"
+    return qual
+
+
 @st.cache_data(show_spinner="Checking whether each reconstruction found the right shapes...")
 def _compute_qualitative_detection(dataset_root: str, entries_key: tuple) -> dict:
     """Classify object detection per sample (detected / partially detected /
@@ -3464,53 +3578,18 @@ def _compute_qualitative_detection(dataset_root: str, entries_key: tuple) -> dic
     and doesn't depend on that separate, unpopulated pipeline.
 
     entries_key: tuple of (method, mat_path, level, sample) — passed as a
-    plain tuple (not the per_run dict) so st.cache_data can hash it.
+    plain tuple (not the per_run dict) so st.cache_data can hash it. The
+    actual per-sample work happens in _qualitative_sample_result, cached
+    separately so this function's own cache misses (e.g. a filter change)
+    stay cheap — just aggregation over already-cached per-sample results.
     """
-    from ktc_framework.plugins.hull_plugin import HullAnalyzer
-    from ktc_framework.metrics.qualitative_metrics import compute_qualitative_sample, aggregate_qualitative
-    import scipy.io
+    from ktc_framework.metrics.qualitative_metrics import aggregate_qualitative
 
-    sample_to_num = {"A": "1", "B": "2", "C": "3"}
-
-    def load_gt(level: int, sample: str):
-        gt_dir = Path(dataset_root) / "GroundTruths"
-        snum = sample_to_num.get(sample, sample)
-        candidates = [
-            gt_dir / f"level_{level}" / f"{snum}_true.mat",
-            gt_dir / f"level{level}" / f"{snum}_true.mat",
-        ]
-        for path in candidates:
-            if path.exists():
-                mat = scipy.io.loadmat(str(path), squeeze_me=True)
-                for key in ["truth", "Segmentation", "gt", "seg"]:
-                    if key in mat:
-                        arr = np.asarray(mat[key], dtype=np.uint8)
-                        if arr.shape == (256, 256):
-                            return arr
-        return None
-
-    analyzer = HullAnalyzer()
     per_method_samples: dict[str, list] = {}
-    gt_cache: dict = {}
-
     for method, mat_path, level, sample in entries_key:
-        try:
-            mat = scipy.io.loadmat(mat_path, squeeze_me=True)
-            pred = np.asarray(mat["reconstruction"], dtype=np.uint8)
-        except (OSError, ValueError, KeyError):
+        qual = _qualitative_sample_result(dataset_root, mat_path, level, sample)
+        if qual is None:
             continue
-        if pred.shape != (256, 256):
-            continue
-
-        gt_key = (level, sample)
-        if gt_key not in gt_cache:
-            gt_cache[gt_key] = load_gt(level, sample)
-        gt = gt_cache[gt_key]
-        if gt is None or not np.any(gt):
-            continue
-
-        qual = compute_qualitative_sample(pred, gt, analyzer)
-        qual['sample_id'] = f"L{level}_{sample}"
         per_method_samples.setdefault(method, []).append(qual)
 
     results = {}
