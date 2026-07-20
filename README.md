@@ -145,6 +145,12 @@ pip install -e .
 
 ## 4. Run the Dashboard
 
+There are two ways to run the dashboard. Pick whichever fits your setup.
+
+---
+
+### Option A — Python virtual environment (after cloning)
+
 With your virtual environment active (you see `(venv)` in the prompt), run:
 
 ```powershell
@@ -164,6 +170,33 @@ Open that URL in your browser. The **EIT Bench** dashboard will load.
 > **"streamlit: command not found"?**
 > Your virtual environment is not active. Run `.\venv\Scripts\Activate.ps1` (Windows) or
 > `source venv/bin/activate` (Mac/Linux) and try again.
+
+---
+
+### Option B — Docker (no Python install needed)
+
+If you have Docker Desktop installed and running, you can skip all of sections 2–3 entirely
+and run the dashboard directly from the pre-built image on Docker Hub:
+
+```powershell
+docker pull sahil2705/ktc-dashboard:full
+docker run -p 8501:8501 -v ktc_outputs:/app/outputs sahil2705/ktc-dashboard:full
+```
+
+Then open <http://localhost:8501> in your browser.
+
+**What the `-v ktc_outputs:/app/outputs` flag does:**
+It creates a Docker named volume called `ktc_outputs` that persists on your machine.
+Every benchmark run you start inside the dashboard is saved there and will still be
+visible the next time you start the container — even after stopping and restarting it.
+Without this flag, results disappear when the container stops.
+
+> **The dashboard already shows one pre-computed run on first boot** — you can browse
+> the leaderboard and figures immediately without running anything.
+
+> **To stop the container**, press `Ctrl+C` in the terminal.
+
+---
 
 > 📸 **Screenshot:** Paste a screenshot of the dashboard home page here so new users know
 > what to expect on first load (before any benchmark has been run).
