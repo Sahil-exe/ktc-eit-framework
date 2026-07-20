@@ -17,18 +17,14 @@ from ktc_framework.reporting.data_layer import (
     filter_by_level,
     find_latest_run,
     iter_run_dirs_newest_first,
-    load_merged_run_data,
     load_run_data,
 )
 
-HIDDEN_METHODS = {"ReferenceFEM", "RegularizedFEMReconstruction"}
+HIDDEN_METHODS = {"main", "abc1", "ReferenceFEM", "RegularizedFEMReconstruction"}
 BUILTIN_METHODS = {
     "BackProjection",
     "CompetitionCNN",
-    "GaussNewton",
     "LinearDifferenceReconstruction",
-    "ReferenceFEM",
-    "RegularizedFEMReconstruction",
 }
 
 METRIC_LABEL_TO_KEY = dict(METRIC_SPECS)
@@ -100,12 +96,42 @@ def true_first_run_runtime_ms(_cache_bust: str = "") -> dict:
     return best
 
 
+def _run_dir_has_dashboard_data(run_dir: Path) -> bool:
+    """True if run_dir contains non-empty scores.json + per_run_metrics.json."""
+    scores_path = run_dir / "scores.json"
+    per_run_path = run_dir / "per_run_metrics.json"
+    if not scores_path.exists() or not per_run_path.exists():
+        return False
+    try:
+        with scores_path.open(encoding="utf-8") as f:
+            scores_data = json.load(f)
+        with per_run_path.open(encoding="utf-8") as f:
+            per_run_data = json.load(f)
+        total = sum(len(v) for v in per_run_data.values()) if isinstance(per_run_data, dict) else 0
+        return bool(scores_data) and bool(per_run_data) and total > 0
+    except (ValueError, OSError):
+        return False
+
+
+@st.cache_data(ttl=600)
+def get_all_valid_runs(runs_root: str) -> List[Path]:
+    """Every run_* directory under runs_root with valid dashboard data, newest first.
+
+    Module-level (rather than nested in the sidebar renderer) so callers whose
+    action changes the run list — a run finishing or being deleted — can bust
+    exactly this cache via `.clear()` instead of a blanket st.cache_data.clear()
+    that would also wipe unrelated, expensive caches (see _classify_ext_file).
+    """
+    root = Path(runs_root)
+    if not root.exists():
+        return []
+    return [d for d in sorted(root.glob("run_*"), reverse=True) if _run_dir_has_dashboard_data(d)]
+
+
 @st.cache_data
 def load_data(run_dir: str) -> Tuple[Dict, Dict, Dict]:
-    """Load merged scores from all run directories; run_dir is the cache-busting key."""
-    p = Path(run_dir)
-    runs_root = p.parent if p.name.startswith("run_") else p
-    scores, per_run = load_merged_run_data(runs_root)
+    """Load scores from the given run directory only (no merge across past runs)."""
+    scores, per_run = load_run_data(Path(run_dir))
     scores = {k: v for k, v in scores.items() if k not in HIDDEN_METHODS}
     per_run = {k: v for k, v in per_run.items() if k not in HIDDEN_METHODS}
     return scores, per_run, create_method_mapping(scores, per_run)
