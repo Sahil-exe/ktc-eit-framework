@@ -84,10 +84,13 @@ RUN pip install -r requirements-full.txt
 
 FROM deps-slim AS slim
 COPY --chown=app:app . .
-RUN pip install --no-deps . && chmod +x docker-entrypoint.sh
+# .dockerignore re-includes outputs/run_* via a negation rule; Docker creates
+# the outputs/ parent synthetically as root before applying --chown, so we
+# must fix the directory's owner explicitly.
+RUN pip install --no-deps . && chmod +x docker-entrypoint.sh && chown app:app /app/outputs
 USER app
 
 FROM deps-full AS full
 COPY --chown=app:app . .
-RUN pip install --no-deps . && chmod +x docker-entrypoint.sh
+RUN pip install --no-deps . && chmod +x docker-entrypoint.sh && chown app:app /app/outputs
 USER app
